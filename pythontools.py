@@ -497,57 +497,6 @@ class Client(api.BaseHandler):
         elif result := params.get("result"):
             self.active_document.apply_text_changes(result)
 
-    @wait_initialized
-    def textdocument_codeaction(
-        self, file_name, start_row, start_col, end_row, end_col
-    ):
-        if document := self.working_documents.get(file_name):
-
-            self.transport.send_request(
-                "textDocument/codeAction",
-                {
-                    "context": {
-                        "diagnostics": self.diagnostics_map.get(file_name, []),
-                        "triggerKind": 2,
-                    },
-                    "range": {
-                        "end": {"character": end_col, "line": end_row},
-                        "start": {"character": start_col, "line": start_row},
-                    },
-                    "textDocument": {"uri": document.document_uri()},
-                },
-            )
-
-    def handle_textdocument_codeaction(self, params: dict):
-        if error := params.get("error"):
-            print(error["message"])
-        elif result := params.get("result"):
-            self._show_codeaction(result)
-
-    def _show_codeaction(self, actions: List[dict]):
-        def on_select(index):
-            if index < 0:
-                return
-
-            action = actions[index]
-            if edit := action.get("edit"):
-                self._apply_edit(edit)
-            elif command := action.get("command"):
-                self.transport.send_request("workspace/executeCommand", command)
-
-        def get_title(action: dict) -> str:
-            title = action["title"]
-            if kind := action.get("kind"):
-                return f"({kind}) {title}"
-            return title
-
-        self.active_window().show_quick_panel(
-            items=[get_title(i) for i in actions],
-            on_select=on_select,
-            # flags=sublime.MONOSPACE_FONT,
-            placeholder="Code actions...",
-        )
-
     def _apply_edit(self, edit: dict):
         for document_changes in edit["documentChanges"]:
             file_name = api.uri_to_path(document_changes["textDocument"]["uri"])
@@ -888,22 +837,6 @@ class PythontoolsDocumentFormattingCommand(sublime_plugin.TextCommand):
         if CLIENT.ready():
             CLIENT.textdocument_didopen(file_name)
             CLIENT.textdocument_formatting(file_name)
-
-    def is_visible(self):
-        return valid_context(self.view, 0)
-
-
-class PythontoolsCodeActionCommand(sublime_plugin.TextCommand):
-    def run(self, edit: sublime.Edit):
-        file_name = self.view.file_name()
-        cursor = self.view.sel()[0]
-        if CLIENT.ready():
-            CLIENT.textdocument_didopen(file_name)
-            start_row, start_col = self.view.rowcol(cursor.a)
-            end_row, end_col = self.view.rowcol(cursor.b)
-            CLIENT.textdocument_codeaction(
-                file_name, start_row, start_col, end_row, end_col
-            )
 
     def is_visible(self):
         return valid_context(self.view, 0)

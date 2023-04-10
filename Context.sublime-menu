@@ -1,34 +1,28 @@
-[	
+[
 	{
-		"caption" : "Format Code",
-		"mnemonic" : "F",
-		"id" : "pythontools",
-		"command" : "pythontools_document_formatting",
+		"caption": "Format Code",
+		"command": "pythontools_document_formatting",
+		"id": "pythontools",
+		"mnemonic": "F"
 	},
 	{
-		"caption" : "-",
-		"id" : "pythontools",
+		"caption": "-",
+		"id": "pythontools"
 	},
 	{
-		"caption" : "Show Definition",
-		"mnemonic" : "i",
-		"id" : "pythontools",
-		"command" : "pythontools_goto_definition",
+		"caption": "Show Definition",
+		"command": "pythontools_goto_definition",
+		"id": "pythontools",
+		"mnemonic": "i"
 	},
 	{
-		"caption" : "-",
-		"id" : "pythontools",
+		"caption": "-",
+		"id": "pythontools"
 	},
 	{
-		"caption" : "Code Action",
-		"mnemonic" : "A",
-		"id" : "pythontools",
-		"command" : "pythontools_code_action",
-	},
-	{
-		"caption" : "Rename symbol...",
-		"mnemonic" : "R",
-		"id" : "pythontools",
-		"command" : "pythontools_rename",
+		"caption": "Rename symbol...",
+		"command": "pythontools_rename",
+		"id": "pythontools",
+		"mnemonic": "R"
 	}
 ]
