@@ -72,7 +72,7 @@ class TextChange:
 DOCUMENT_CHAGE_EVENT = threading.Event()
 
 
-class GotoolsApplyTextChangesCommand(sublime_plugin.TextCommand):
+class PythontoolsApplyTextChangesCommand(sublime_plugin.TextCommand):
     def run(self, edit: sublime.Edit, changes: List[dict]):
         text_changes = [self.to_text_change(c) for c in changes]
         try:
@@ -221,7 +221,7 @@ class BufferedDocument:
         self.view.run_command("hide_auto_complete")
 
     def apply_text_changes(self, changes: List[dict]):
-        self.view.run_command("gotools_apply_text_changes", {"changes": changes})
+        self.view.run_command("pythontools_apply_text_changes", {"changes": changes})
 
     def highlight_text(self, diagnostics: List[dict]):
         def get_region(diagnostic):
@@ -233,7 +233,7 @@ class BufferedDocument:
             return sublime.Region(start_point, end_point)
 
         regions = [get_region(d) for d in diagnostics]
-        key = "gotools_diagnostic"
+        key = "pythontools_diagnostic"
 
         self.view.add_regions(
             key=key,
@@ -244,7 +244,7 @@ class BufferedDocument:
 
 
 class DiagnosticPanel:
-    OUTPUT_PANEL_NAME = "gotools_panel"
+    OUTPUT_PANEL_NAME = "pythontools_panel"
 
     def __init__(self, window: sublime.Window, diagnostics_map: Dict[str, List[dict]]):
         self.window = window
@@ -324,7 +324,7 @@ class Client(api.BaseHandler):
         # only one thread can run server
         with self.run_server_lock:
             if not self.transport.is_running():
-                sublime.status_message("running gopls...")
+                sublime.status_message("running pyserver...")
                 self.transport.run_server()
 
     def exit(self):
@@ -704,7 +704,7 @@ def plugin_unloaded():
 
 
 def valid_context(view: sublime.View, point: int):
-    return view.match_selector(point, "source.go")
+    return view.file_name() and view.match_selector(point, "source.python")
 
 
 def get_workspace_path(view: sublime.View) -> str:
@@ -882,7 +882,7 @@ class TextChangeListener(sublime_plugin.TextChangeListener):
         }
 
 
-class GotoolsDocumentFormattingCommand(sublime_plugin.TextCommand):
+class PythontoolsDocumentFormattingCommand(sublime_plugin.TextCommand):
     def run(self, edit: sublime.Edit):
         file_name = self.view.file_name()
         if CLIENT.ready():
@@ -893,7 +893,7 @@ class GotoolsDocumentFormattingCommand(sublime_plugin.TextCommand):
         return valid_context(self.view, 0)
 
 
-class GotoolsCodeActionCommand(sublime_plugin.TextCommand):
+class PythontoolsCodeActionCommand(sublime_plugin.TextCommand):
     def run(self, edit: sublime.Edit):
         file_name = self.view.file_name()
         cursor = self.view.sel()[0]
@@ -909,7 +909,7 @@ class GotoolsCodeActionCommand(sublime_plugin.TextCommand):
         return valid_context(self.view, 0)
 
 
-class GotoolsGotoDefinitionCommand(sublime_plugin.TextCommand):
+class PythontoolsGotoDefinitionCommand(sublime_plugin.TextCommand):
     def run(self, edit: sublime.Edit):
         file_name = self.view.file_name()
         cursor = self.view.sel()[0]
@@ -922,7 +922,7 @@ class GotoolsGotoDefinitionCommand(sublime_plugin.TextCommand):
         return valid_context(self.view, 0)
 
 
-class GotoolsRenameCommand(sublime_plugin.TextCommand):
+class PythontoolsRenameCommand(sublime_plugin.TextCommand):
     def run(self, edit: sublime.Edit):
         file_name = self.view.file_name()
         cursor = self.view.sel()[0]

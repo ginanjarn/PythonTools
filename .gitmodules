@@ -1,0 +1,3 @@
+[submodule "pyserver"]
+	path = pyserver
+	url = https://github.com/ginanjarn/pyserver

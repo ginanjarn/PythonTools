@@ -197,12 +197,12 @@ class Transport:
         listen_stderr_thread.start()
 
     def _run_server(self):
-        command = ["gopls"]
+        command = [r"C:\Users\ginanjar\miniconda3\python.exe", "-m", "pyserver", "-i"]
+        cwd = (
+            r"C:\Users\ginanjar\AppData\Roaming\Sublime Text\Packages\pytools\pyserver"
+        )
 
-        if LOGGER.level == logging.DEBUG:
-            command.append("-veryverbose")
-
-        LOGGER.debug("exec command: %s",command)
+        LOGGER.debug("exec command: %s", command)
 
         self._server_process = subprocess.Popen(
             command,
@@ -210,7 +210,7 @@ class Transport:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env=None,
-            cwd=None,
+            cwd=cwd,
             bufsize=0,
             startupinfo=STARTUPINFO,
         )
@@ -231,6 +231,7 @@ class Transport:
 
         try:
             self._server_process.stdin.write(write_data)
+            self._server_process.stdin.write(b"\n") # required by pyserver
             self._server_process.stdin.flush()
 
         except Exception as err:
@@ -243,7 +244,7 @@ class Transport:
         self._run_server_event.wait()
 
         while line := self._server_process.stderr.readline():
-            print(f"[gopls]{line.strip().decode()}")
+            print(f"[.] {line.strip().decode()}")
 
     def _listen(self):
         # wait until server ready
