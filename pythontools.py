@@ -311,7 +311,11 @@ class Client(api.BaseHandler):
 
     def get_settings(self) -> dict:
         with Settings() as settings:
-            return settings.to_dict()
+            if settings := settings.to_dict():
+                return settings
+
+            sublime.active_window().run_command("pythontools_set_environment")
+            return {}
 
     initialized_event = threading.Event()
 

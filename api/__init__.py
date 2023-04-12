@@ -251,6 +251,9 @@ class Transport:
         while line := self._server_process.stderr.readline():
             print(f"[.] {line.strip().decode()}")
 
+        # enforce server terminated
+        self.terminate_server()
+
     def _listen(self):
         # wait until server ready
         self._run_server_event.wait()
