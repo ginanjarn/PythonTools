@@ -15,6 +15,7 @@ import sublime_plugin
 from sublime import HoverZone
 
 from . import api
+from .api.sublime_settings import Settings
 
 LOGGER = logging.getLogger(__name__)
 # LOGGER.setLevel(logging.DEBUG)
@@ -308,6 +309,10 @@ class Client(api.BaseHandler):
             self.active_window(), self.diagnostics_map
         )
 
+    def get_settings(self) -> dict:
+        with Settings() as settings:
+            return settings.to_dict()
+
     initialized_event = threading.Event()
 
     def wait_initialized(func):
@@ -328,7 +333,7 @@ class Client(api.BaseHandler):
         with self.run_server_lock:
             if not self.transport.is_running():
                 sublime.status_message("running pyserver...")
-                self.transport.run_server()
+                self.transport.run_server(self.get_settings())
 
     def exit(self):
         """exit session"""

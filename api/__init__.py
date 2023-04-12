@@ -186,9 +186,11 @@ class Transport:
             return True
         return False
 
-    def run_server(self):
+    def run_server(self, settings: Optional[dict] = None):
         # process must not blocking main process
-        run_thread = threading.Thread(target=self._run_server, daemon=True)
+        run_thread = threading.Thread(
+            target=self._run_server, args=(settings,), daemon=True
+        )
         listen_thread = threading.Thread(target=self._listen, daemon=True)
         listen_stderr_thread = threading.Thread(target=self._listen_stderr, daemon=True)
 
@@ -196,8 +198,10 @@ class Transport:
         listen_thread.start()
         listen_stderr_thread.start()
 
-    def _run_server(self):
-        command = [r"C:\Users\ginanjar\miniconda3\python.exe", "-m", "pyserver", "-i"]
+    def _run_server(self, settings: Optional[dict] = None):
+        settings = settings or {}
+
+        command = [settings.get("python", "python"), "-m", "pyserver", "-i"]
         cwd = (
             r"C:\Users\ginanjar\AppData\Roaming\Sublime Text\Packages\pytools\pyserver"
         )
@@ -209,8 +213,9 @@ class Transport:
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            env=None,
+            env=settings.get("envs"),
             cwd=cwd,
+            shell=True,
             bufsize=0,
             startupinfo=STARTUPINFO,
         )
@@ -231,7 +236,7 @@ class Transport:
 
         try:
             self._server_process.stdin.write(write_data)
-            self._server_process.stdin.write(b"\n") # required by pyserver
+            self._server_process.stdin.write(b"\n")  # required by pyserver
             self._server_process.stdin.flush()
 
         except Exception as err:
