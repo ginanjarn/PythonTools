@@ -202,9 +202,8 @@ class Transport:
         settings = settings or {}
 
         command = [settings.get("python", "python"), "-m", "pyserver", "-i"]
-        cwd = (
-            r"C:\Users\ginanjar\AppData\Roaming\Sublime Text\Packages\pytools\pyserver"
-        )
+        root_path = Path(__file__).parent.parent
+        server_path = root_path.joinpath("pyserver")
 
         LOGGER.debug("exec command: %s", command)
 
@@ -214,7 +213,7 @@ class Transport:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env=settings.get("envs"),
-            cwd=cwd,
+            cwd=server_path,
             shell=True,
             bufsize=0,
             startupinfo=STARTUPINFO,
