@@ -63,7 +63,12 @@ class PythontoolsSetEnvironmentCommand(sublime_plugin.WindowCommand):
     def scan_environments(self) -> List[Environment]:
         sublime.status_message("scanning environments...")
 
-        workspace = get_workspace_path(self.window.active_view())
+        workspace = ""
+        try:
+            workspace = get_workspace_path(self.window.active_view())
+        except Exception:
+            # get workspace from blank view
+            pass
         envs = list(chain(System().scan(), Conda().scan(), Venv(workspace).scan()))
 
         self._write_cache(envs)
