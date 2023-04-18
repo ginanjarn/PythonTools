@@ -1,4 +1,4 @@
-"""Golang tools for Sublime Text"""
+"""Python tools for Sublime Text"""
 
 import logging
 import threading
@@ -415,7 +415,7 @@ class Client(api.BaseHandler):
             )
 
         else:
-            # untitled document not yet loaded to clangd
+            # untitled document not yet loaded
             self.textdocument_didopen(file_name)
 
     def textdocument_didclose(self, file_name: str):
