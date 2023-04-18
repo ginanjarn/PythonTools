@@ -178,6 +178,10 @@ class BufferedDocument:
         return api.path_to_uri(self.file_name)
 
     @property
+    def language_id(self) -> str:
+        return "python"
+
+    @property
     def window(self) -> sublime.Window:
         return self.view.window()
 
@@ -399,7 +403,7 @@ class Client(api.BaseHandler):
             "textDocument/didOpen",
             {
                 "textDocument": {
-                    "languageId": "go",
+                    "languageId": self.active_document.language_id,
                     "text": self.active_document.text,
                     "uri": self.active_document.document_uri(),
                     "version": self.active_document.version,
