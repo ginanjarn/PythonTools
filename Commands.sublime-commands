@@ -2,5 +2,17 @@
 	{
 		"caption": "Python: Set Environment",
 		"command": "pythontools_set_environment"
+	},
+	{
+		"caption": "Python: Open Terminal",
+		"command": "pythontools_open_terminal"
+	},
+	{
+		"arguments":
+		{
+			"on_active_document": true
+		},
+		"caption": "Python: Open Terminal Here",
+		"command": "pythontools_open_terminal"
 	}
 ]
