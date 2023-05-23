@@ -234,6 +234,9 @@ class Transport:
         return self._temp_request_id
 
     def send_message(self, message: RPCMessage):
+        # wait until server ready
+        self._run_server_event.wait()
+
         message["jsonrpc"] = "2.0"
         write_data = StreamBuffer.wraps(message.dumps(as_bytes=True))
 
