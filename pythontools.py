@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from functools import wraps
 from io import StringIO
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 
 import sublime
@@ -309,7 +309,6 @@ class DiagnosticPanel:
 class Client(api.BaseHandler):
     def __init__(self):
         self.transport = api.Transport(self)
-        self.active_document: BufferedDocument = None
         self.working_documents: dict[str, BufferedDocument] = {}
 
         self._initialized = False
@@ -318,6 +317,13 @@ class Client(api.BaseHandler):
         self.diagnostics_panel = DiagnosticPanel(
             self.active_window(), self.diagnostics_map
         )
+
+        # commands document target
+        self.hover_target: Optional[BufferedDocument] = None
+        self.completion_target: Optional[BufferedDocument] = None
+        self.formatting_target: Optional[BufferedDocument] = None
+        self.definition_target: Optional[BufferedDocument] = None
+        self.rename_target: Optional[BufferedDocument] = None
 
     def get_settings(self) -> dict:
         with Settings() as settings:
@@ -395,21 +401,20 @@ class Client(api.BaseHandler):
     @wait_initialized
     def textdocument_didopen(self, file_name: str, *, reload: bool = False):
         if (not reload) and file_name in self.working_documents:
-            self.active_document = self.working_documents[file_name]
             return
 
         view = self.active_window().find_open_file(file_name)
-        self.working_documents[file_name] = BufferedDocument(view)
-        self.active_document = self.working_documents[file_name]
+        document = BufferedDocument(view)
+        self.working_documents[file_name] = document
 
         self.transport.send_notification(
             "textDocument/didOpen",
             {
                 "textDocument": {
-                    "languageId": self.active_document.language_id,
-                    "text": self.active_document.text,
-                    "uri": self.active_document.document_uri(),
-                    "version": self.active_document.version,
+                    "languageId": document.language_id,
+                    "text": document.text,
+                    "uri": document.document_uri(),
+                    "version": document.version,
                 }
             },
         )
@@ -422,7 +427,7 @@ class Client(api.BaseHandler):
             )
 
         else:
-            # untitled document not yet loaded
+            # untitled document not yet loaded to server
             self.textdocument_didopen(file_name)
 
     def textdocument_didclose(self, file_name: str):
@@ -460,6 +465,7 @@ class Client(api.BaseHandler):
                     "textDocument": {"uri": document.document_uri()},
                 },
             )
+            self.hover_target = document
 
     def handle_textdocument_hover(self, params: dict):
         if err := params.get("error"):
@@ -473,7 +479,7 @@ class Client(api.BaseHandler):
             except Exception:
                 pass
             else:
-                self.active_document.show_popup(message, row, col)
+                self.hover_target.show_popup(message, row, col)
 
     @wait_initialized
     def textdocument_completion(self, file_name, row, col):
@@ -485,6 +491,7 @@ class Client(api.BaseHandler):
                     "textDocument": {"uri": document.document_uri()},
                 },
             )
+            self.completion_target = document
 
     def handle_textdocument_completion(self, params: dict):
         if err := params.get("error"):
@@ -496,7 +503,7 @@ class Client(api.BaseHandler):
             except Exception:
                 pass
             else:
-                self.active_document.show_completion(items)
+                self.completion_target.show_completion(items)
 
     def handle_textdocument_publishdiagnostics(self, params: dict):
         file_name = api.uri_to_path(params["uri"])
@@ -518,12 +525,13 @@ class Client(api.BaseHandler):
                     "textDocument": {"uri": document.document_uri()},
                 },
             )
+            self.formatting_target = document
 
     def handle_textdocument_formatting(self, params: dict):
         if error := params.get("error"):
             print(error["message"])
         elif result := params.get("result"):
-            self.active_document.apply_text_changes(result)
+            self.formatting_target.apply_text_changes(result)
 
     def _apply_edit(self, edit: dict):
         for document_changes in edit["documentChanges"]:
@@ -567,9 +575,10 @@ class Client(api.BaseHandler):
                     "textDocument": {"uri": document.document_uri()},
                 },
             )
+            self.definition_target = document
 
     def _open_locations(self, locations: List[dict]):
-        current_view = self.active_document.view
+        current_view = self.definition_target.view
         current_sel = tuple(current_view.sel())
 
         def build_location(location: dict):
@@ -610,14 +619,16 @@ class Client(api.BaseHandler):
             self._open_locations(result)
 
     @wait_initialized
-    def textdocument_preparerename(self, row, col):
-        self.transport.send_request(
-            "textDocument/prepareRename",
-            {
-                "position": {"character": col, "line": row},
-                "textDocument": {"uri": self.active_document.document_uri()},
-            },
-        )
+    def textdocument_preparerename(self, file_name, row, col):
+        if document := self.working_documents.get(file_name):
+            self.transport.send_request(
+                "textDocument/prepareRename",
+                {
+                    "position": {"character": col, "line": row},
+                    "textDocument": {"uri": document.document_uri()},
+                },
+            )
+            self.rename_target = document
 
     @wait_initialized
     def textdocument_rename(self, new_name, row, col):
@@ -626,24 +637,24 @@ class Client(api.BaseHandler):
             {
                 "newName": new_name,
                 "position": {"character": col, "line": row},
-                "textDocument": {"uri": self.active_document.document_uri()},
+                "textDocument": {"uri": self.rename_target.document_uri()},
             },
         )
 
     def _input_rename(self, symbol_location: dict):
         start = symbol_location["range"]["start"]
-        start_point = self.active_document.view.text_point(
+        start_point = self.rename_target.view.text_point(
             start["line"], start["character"]
         )
         end = symbol_location["range"]["end"]
-        end_point = self.active_document.view.text_point(end["line"], end["character"])
+        end_point = self.rename_target.view.text_point(end["line"], end["character"])
 
         def request_rename(new_name):
             self.textdocument_rename(new_name, start["line"], start["character"])
 
         self.active_window().show_input_panel(
             caption="rename",
-            initial_text=self.active_document.view.substr(
+            initial_text=self.rename_target.view.substr(
                 sublime.Region(start_point, end_point)
             ),
             on_done=request_rename,
@@ -713,6 +724,9 @@ class ViewEventListener(sublime_plugin.ViewEventListener):
         # check if server available
         try:
             if CLIENT.ready():
+                # on multi column layout, sometime we hover on other document which may
+                # not loaded yet
+                CLIENT.textdocument_didopen(file_name)
                 # request on hover
                 CLIENT.textdocument_hover(file_name, row, col)
             else:
@@ -731,13 +745,16 @@ class ViewEventListener(sublime_plugin.ViewEventListener):
         self, prefix: str, locations: List[int]
     ) -> sublime.CompletionList:
 
+        if not CLIENT.ready():
+            return None
+
         point = locations[0]
 
         # check point in valid source
         if not valid_context(self.view, point):
             return
 
-        if (document := CLIENT.active_document) and document.completion_ready():
+        if (document := CLIENT.completion_target) and document.completion_ready():
 
             show = False
             word = self.view.word(self.prev_completion_loc)
@@ -858,7 +875,6 @@ class PythontoolsDocumentFormattingCommand(sublime_plugin.TextCommand):
     def run(self, edit: sublime.Edit):
         file_name = self.view.file_name()
         if CLIENT.ready():
-            CLIENT.textdocument_didopen(file_name)
             CLIENT.textdocument_formatting(file_name)
 
     def is_visible(self):
@@ -870,7 +886,6 @@ class PythontoolsGotoDefinitionCommand(sublime_plugin.TextCommand):
         file_name = self.view.file_name()
         cursor = self.view.sel()[0]
         if CLIENT.ready():
-            CLIENT.textdocument_didopen(file_name)
             start_row, start_col = self.view.rowcol(cursor.a)
             CLIENT.textdocument_definition(file_name, start_row, start_col)
 
@@ -883,9 +898,8 @@ class PythontoolsRenameCommand(sublime_plugin.TextCommand):
         file_name = self.view.file_name()
         cursor = self.view.sel()[0]
         if CLIENT.ready():
-            CLIENT.textdocument_didopen(file_name)
             start_row, start_col = self.view.rowcol(cursor.a)
-            CLIENT.textdocument_preparerename(start_row, start_col)
+            CLIENT.textdocument_preparerename(file_name, start_row, start_col)
 
     def is_visible(self):
         return valid_context(self.view, 0)
