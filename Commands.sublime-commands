@@ -4,6 +4,10 @@
 		"command": "pythontools_set_environment"
 	},
 	{
+		"caption": "Python: Terminate server",
+		"command": "pythontools_terminate"
+	},
+	{
 		"caption": "Python: Open Terminal",
 		"command": "pythontools_open_terminal"
 	},
