@@ -337,8 +337,8 @@ class PyserverHandler(api.BaseHandler):
         self.server_path = Path(__file__).parent.joinpath("pyserver")
         # client initializer
         server_command = ["python", "-m", "pyserver", "-i"]
-        self.transport = api.StandardIO(server_command)
-        self.client = api.Client(self.transport, self)
+        transport = api.StandardIO(server_command)
+        self.client = api.Client(transport, self)
 
         # workspace status
         self.working_documents: dict[str, BufferedDocument] = {}
