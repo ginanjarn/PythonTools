@@ -18,3 +18,12 @@ This plugin is for you who want use feature like Visual Studio Code capability b
 	* `Pyflakes`
 
 > Anaconda or Miniconda installed at HOME directory automatically detected.
+
+# Install
+Clone this repository with recursive submodule in SublimeText Packages directory.
+
+> On Sublime Text menu: `Preferences` > `Browse Packages`
+
+```bash
+git clone --recurse-submodules https://github.com/ginanjarn/pythontools.git
+```
