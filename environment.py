@@ -2,22 +2,15 @@
 
 import json
 import threading
-from dataclasses import dataclass, asdict
+from dataclasses import asdict
 from pathlib import Path
-from itertools import chain
-from typing import Dict, Any, List
+from typing import Iterator, Iterable
 
 import sublime
 import sublime_plugin
 
-from .api.environment import Environment, System, Conda, Venv
+from .api import virtual_environment as venv
 from .api.sublime_settings import Settings
-
-
-@dataclass
-class InterpreterSettings:
-    python_path: str
-    envs: Dict[str, Any]
 
 
 def get_workspace_path(view: sublime.View) -> str:
@@ -32,62 +25,58 @@ def get_workspace_path(view: sublime.View) -> str:
 
 
 class PythontoolsSetEnvironmentCommand(sublime_plugin.WindowCommand):
-    def run(self, scan: bool = False):
-        threading.Thread(target=self.show_environments, args=(scan,)).start()
+    def run(self, scan=False):
+        thread = threading.Thread(target=self._run, args=(scan,))
+        thread.start()
 
-    def show_environments(self, scan: bool = False):
-        if scan:
-            envs = self.scan_environments()
-        else:
-            envs = self.load_cached_environments()
+    def _run(self, scan=False):
+        managers = list(self.load_cache())
+        if not managers or scan:
+            managers = list(self.scan_managers())
+            self.save_cache(managers)
 
-        interpreters = [env.pythonpath for env in envs]
-        interpreters.append("Scan Environments...")
+        titles = [m.python_bin for m in managers]
+        titles.append("Scan environments...")
 
-        def select_environment(index=-1):
+        def select_item(index=-1):
             if index < 0:
                 return
-
-            try:
-                self.set(envs[index])
-            except IndexError:
+            elif index == len(managers):
                 self.window.run_command("pythontools_set_environment", {"scan": True})
+                return
 
-        self.window.show_quick_panel(interpreters, on_select=select_environment)
+            pythonpath = managers[index].python_bin
+            environment = venv.get_environment(managers[index])
 
-    def set(self, env: Environment):
-        with Settings(save=True) as settings:
-            settings.set("python", env.pythonpath)
-            settings.set("envs", env.envs)
+            with Settings(save=True) as settings:
+                settings.set("python", pythonpath)
+                settings.set("envs", environment)
 
-    def scan_environments(self) -> List[Environment]:
-        sublime.status_message("scanning environments...")
+        self.window.show_quick_panel(titles, on_select=select_item)
 
-        workspace = ""
-        try:
-            workspace = get_workspace_path(self.window.active_view())
-        except Exception:
-            # get workspace from blank view
-            pass
-        envs = list(chain(System().scan(), Conda().scan(), Venv(workspace).scan()))
+    def scan_managers(self) -> Iterator[venv.Manager]:
+        workdir = get_workspace_path(self.window.active_view())
+        yield from venv.scan(workdir)
 
-        self._write_cache(envs)
-        return envs
+    cache_path = Path(__file__).parent.joinpath("var/environment_managers.json")
 
-    cache_path = Path(__file__).parent.joinpath("var", "environments.json")
+    def load_cache(self) -> Iterator[venv.Manager]:
+        if not self.cache_path.is_file():
+            return
 
-    def _write_cache(self, envs: List[Environment]):
-        self.cache_path.parent.mkdir(parents=True, exist_ok=True)
+        data = json.loads(self.cache_path.read_text())
+        for item in data:
+            yield venv.Manager(
+                python_bin=item["python_bin"],
+                activate_command=item["activate_command"],
+            )
 
-        norm_envs = [asdict(env) for env in envs]
-        self.cache_path.write_text(json.dumps(norm_envs, indent=2))
+    def save_cache(self, managers: Iterable[venv.Manager]) -> None:
+        dict_managers = [asdict(m) for m in managers]
 
-    def load_cached_environments(self) -> List[Environment]:
-        try:
-            jstr = self.cache_path.read_text()
-            data = json.loads(jstr)
+        cache_dir = self.cache_path.parent
+        if not cache_dir.is_dir():
+            cache_dir.mkdir(parents=True)
 
-            return [Environment.fromdict(env) for env in data]
-
-        except (FileNotFoundError, json.JSONDecodeError):
-            return self.scan_environments()
+        data = json.dumps(dict_managers, indent=2)
+        self.cache_path.write_text(data)
