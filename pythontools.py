@@ -494,7 +494,6 @@ class PyserverHandler(api.BaseHandler):
     @wait_initialized
     def textdocument_didchange(self, file_name: str, changes: List[dict]):
         if document := self.working_documents.get(file_name):
-
             change_version = document.view.change_count()
             if change_version <= document.version:
                 return
@@ -626,7 +625,6 @@ class PyserverHandler(api.BaseHandler):
     @wait_initialized
     def textdocument_definition(self, file_name, row, col):
         if document := self.working_documents.get(file_name):
-
             self.client.send_request(
                 "textDocument/definition",
                 {
@@ -808,7 +806,6 @@ class ViewEventListener(sublime_plugin.ViewEventListener):
     def on_query_completions(
         self, prefix: str, locations: List[int]
     ) -> sublime.CompletionList:
-
         if not HANDLER.ready():
             return None
 
@@ -819,7 +816,6 @@ class ViewEventListener(sublime_plugin.ViewEventListener):
             return
 
         if (document := HANDLER.completion_target) and document.completion_ready():
-
             show = False
             word = self.view.word(self.prev_completion_loc)
             if point == self.prev_completion_loc:
