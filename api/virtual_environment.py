@@ -24,7 +24,7 @@ ProcessResult = namedtuple("ProcessResult", ["code", "stdout", "stderr"])
 def get_environment(m: Manager) -> Optional[dict]:
     """get environment"""
 
-    if isinstance(m, System):
+    if not m.activate_command:
         return None
 
     get_env_script = "import os,json;print(json.dumps(os.environ.copy(),indent=2))"
