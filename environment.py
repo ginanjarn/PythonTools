@@ -55,7 +55,11 @@ class PythontoolsSetEnvironmentCommand(sublime_plugin.WindowCommand):
         self.window.show_quick_panel(titles, on_select=select_item)
 
     def scan_managers(self) -> Iterator[venv.Manager]:
-        workdir = get_workspace_path(self.window.active_view())
+        if view := self.window.active_view():
+            workdir = get_workspace_path(view)
+        else:
+            workdir = ""
+
         yield from venv.scan(workdir)
 
     cache_path = Path(__file__).parent.joinpath("var/environment_managers.json")
