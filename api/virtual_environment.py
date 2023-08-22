@@ -137,6 +137,6 @@ def run_childprocess(command: Union[list, str]) -> ProcessResult:
 
     stdout, stderr = proc.communicate()
     code = proc.poll()
-    stdout = stdout.decode() if stdout else ""
-    stderr = stderr.decode() if stderr else ""
+    stdout = stdout.replace(b"\r\n", b"\n").decode() if stdout else ""
+    stderr = stderr.replace(b"\r\n", b"\n").decode() if stderr else ""
     return ProcessResult(code, stdout, stderr)
