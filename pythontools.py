@@ -81,6 +81,7 @@ class PythontoolsApplyTextChangesCommand(sublime_plugin.TextCommand):
             self.apply(edit, text_changes)
             self.relocate_selection(current_sel, text_changes)
         finally:
+            self.view.show(self.view.sel(), show_surrounds=False)
             DOCUMENT_CHAGE_EVENT.set()
 
     def to_text_change(self, change: dict) -> TextChange:
@@ -121,8 +122,6 @@ class PythontoolsApplyTextChangesCommand(sublime_plugin.TextCommand):
         # we must clear current selection
         self.view.sel().clear()
         self.view.sel().add_all(moved_selections)
-
-        self.view.show(moved_selections[0])
 
 
 class UnbufferedDocument:
