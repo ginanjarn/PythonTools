@@ -8,15 +8,11 @@
 		"command": "pythontools_terminate"
 	},
 	{
-		"caption": "Python: Open Terminal",
-		"command": "pythontools_open_terminal"
-	},
-	{
-		"arguments":
+		"args":
 		{
-			"on_active_document": true
+			"settings_name": "Pythontools.sublime-settings"
 		},
-		"caption": "Python: Open Terminal Here",
-		"command": "pythontools_open_terminal"
+		"caption": "Terminal: Open [pythontools]...",
+		"command": "open_terminal"
 	}
 ]
