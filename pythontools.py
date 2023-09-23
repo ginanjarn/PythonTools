@@ -401,6 +401,10 @@ class PyserverHandler(api.BaseHandler):
         with self.run_server_lock:
             if not self.client.server_running():
                 sublime.status_message("running pyserver...")
+                # sometimes the server stop working
+                # we must reset the state before run server
+                self._reset_state()
+
                 settings = self.get_settings()
                 option = api.PopenOptions(
                     env=settings.get("envs"), cwd=self.server_path
