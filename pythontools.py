@@ -991,6 +991,10 @@ class PythontoolsRenameCommand(sublime_plugin.TextCommand):
         cursor = self.view.sel()[0]
         point = event["text_point"] if event else cursor.a
         if HANDLER.ready():
+            # move cursor to point
+            self.view.sel().clear()
+            self.view.sel().add(point)
+
             start_row, start_col = self.view.rowcol(point)
             HANDLER.textdocument_preparerename(file_name, start_row, start_col)
 
