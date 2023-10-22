@@ -334,7 +334,46 @@ class DiagnosticPanel:
         sublime.active_window().destroy_output_panel(self.OUTPUT_PANEL_NAME)
 
 
+class Session:
+    def __init__(self):
+        self._begin = False
+        self._begin_event = threading.Event()
+
+    def is_ready(self):
+        return self._begin
+
+    def begin(self):
+        self._begin = True
+        self._begin_event.set()
+
+    def done(self):
+        self._begin = False
+        self._begin_event.clear()
+
+    def must_begin(self, func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            if not self._begin:
+                return None
+
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    def wait_begin(self, func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            self._begin_event.wait()
+            return func(*args, **kwargs)
+
+        return wrapper
+
+
 class PyserverHandler(api.BaseHandler):
+    """"""
+
+    session = Session()
+
     def __init__(self):
         # pyserver path defined here beacause it located relativeto this file
         self.server_path = Path(__file__).parent.joinpath("pyserver")
@@ -346,7 +385,6 @@ class PyserverHandler(api.BaseHandler):
         # workspace status
         self.working_documents: dict[str, BufferedDocument] = {}
         self._initializing = False
-        self._initialized = False
         self.diagnostics_map = {}
 
         self.diagnostics_panel = DiagnosticPanel()
@@ -361,7 +399,6 @@ class PyserverHandler(api.BaseHandler):
     def _reset_state(self):
         self.working_documents = {}
         self._initializing = False
-        self._initialized = False
         self.diagnostics_map = {}
 
         # commands document target
@@ -371,6 +408,8 @@ class PyserverHandler(api.BaseHandler):
         self.definition_target = None
         self.rename_target = None
 
+        self.session.done()
+
     def get_settings(self) -> dict:
         with Settings() as settings:
             if settings := settings.to_dict():
@@ -379,18 +418,8 @@ class PyserverHandler(api.BaseHandler):
             sublime.active_window().run_command("pythontools_set_environment")
             return {}
 
-    initialized_event = threading.Event()
-
-    def wait_initialized(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            PyserverHandler.initialized_event.wait()
-            return func(*args, **kwargs)
-
-        return wrapper
-
     def ready(self) -> bool:
-        return self.client.server_running() and self._initialized
+        return self.client.server_running() and self.session.is_ready()
 
     run_server_lock = threading.Lock()
 
@@ -415,7 +444,6 @@ class PyserverHandler(api.BaseHandler):
 
     def terminate(self):
         """exit session"""
-        self.initialized_event.clear()
         self.client.terminate_server()
         self._reset_state()
 
@@ -450,8 +478,8 @@ class PyserverHandler(api.BaseHandler):
 
         self.client.send_notification("initialized", {})
         self._initializing = False
-        self._initialized = True
-        self.initialized_event.set()
+
+        self.session.begin()
 
     def handle_window_logmessage(self, params: dict):
         print(params["message"])
@@ -459,7 +487,7 @@ class PyserverHandler(api.BaseHandler):
     def handle_window_showmessage(self, params: dict):
         sublime.status_message(params["message"])
 
-    @wait_initialized
+    @session.wait_begin
     def textdocument_didopen(self, file_name: str, *, reload: bool = False):
         if (not reload) and file_name in self.working_documents:
             return
@@ -484,6 +512,7 @@ class PyserverHandler(api.BaseHandler):
             },
         )
 
+    @session.must_begin
     def textdocument_didsave(self, file_name: str):
         if document := self.working_documents.get(file_name):
             self.client.send_notification(
@@ -495,6 +524,7 @@ class PyserverHandler(api.BaseHandler):
             # untitled document not yet loaded to server
             self.textdocument_didopen(file_name)
 
+    @session.must_begin
     def textdocument_didclose(self, file_name: str):
         if document := self.working_documents.get(file_name):
             self.client.send_notification(
@@ -510,7 +540,7 @@ class PyserverHandler(api.BaseHandler):
             self.diagnostics_panel.set_content(self.diagnostics_map)
             self.diagnostics_panel.show()
 
-    @wait_initialized
+    @session.must_begin
     def textdocument_didchange(self, file_name: str, changes: List[dict]):
         if document := self.working_documents.get(file_name):
             change_version = document.view.change_count()
@@ -530,7 +560,7 @@ class PyserverHandler(api.BaseHandler):
                 },
             )
 
-    @wait_initialized
+    @session.must_begin
     def textdocument_hover(self, file_name, row, col):
         if document := self.working_documents.get(file_name):
             self.client.send_request(
@@ -556,7 +586,7 @@ class PyserverHandler(api.BaseHandler):
             else:
                 self.hover_target.show_popup(message, row, col)
 
-    @wait_initialized
+    @session.must_begin
     def textdocument_completion(self, file_name, row, col):
         if document := self.working_documents.get(file_name):
             self.client.send_request(
@@ -592,7 +622,7 @@ class PyserverHandler(api.BaseHandler):
         if document := self.working_documents.get(file_name):
             document.highlight_text(diagnostics)
 
-    @wait_initialized
+    @session.must_begin
     def textdocument_formatting(self, file_name):
         if document := self.working_documents.get(file_name):
             self.client.send_request(
@@ -641,7 +671,7 @@ class PyserverHandler(api.BaseHandler):
 
         return None
 
-    @wait_initialized
+    @session.must_begin
     def textdocument_definition(self, file_name, row, col):
         if document := self.working_documents.get(file_name):
             self.client.send_request(
@@ -695,7 +725,7 @@ class PyserverHandler(api.BaseHandler):
         elif result := params.get("result"):
             self._open_locations(result)
 
-    @wait_initialized
+    @session.must_begin
     def textdocument_preparerename(self, file_name, row, col):
         if document := self.working_documents.get(file_name):
             self.client.send_request(
@@ -707,7 +737,7 @@ class PyserverHandler(api.BaseHandler):
             )
             self.rename_target = document
 
-    @wait_initialized
+    @session.must_begin
     def textdocument_rename(self, new_name, row, col):
         self.client.send_request(
             "textDocument/rename",
