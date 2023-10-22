@@ -369,6 +369,16 @@ class Session:
         return wrapper
 
 
+@dataclass
+class Workspace:
+    documents: Dict[str, BufferedDocument] = None
+    diagnostics: Dict[str, dict] = None
+
+    def __post_init__(self):
+        self.documents = {}
+        self.diagnostics = {}
+
+
 class PyserverHandler(api.BaseHandler):
     """"""
 
@@ -383,9 +393,8 @@ class PyserverHandler(api.BaseHandler):
         self.client = api.Client(transport, self)
 
         # workspace status
-        self.working_documents: dict[str, BufferedDocument] = {}
         self._initializing = False
-        self.diagnostics_map = {}
+        self.workspace = Workspace()
 
         self.diagnostics_panel = DiagnosticPanel()
 
@@ -397,9 +406,8 @@ class PyserverHandler(api.BaseHandler):
         self.rename_target: Optional[BufferedDocument] = None
 
     def _reset_state(self):
-        self.working_documents = {}
         self._initializing = False
-        self.diagnostics_map = {}
+        self.workspace = Workspace()
 
         # commands document target
         self.hover_target = None
@@ -489,7 +497,7 @@ class PyserverHandler(api.BaseHandler):
 
     @session.wait_begin
     def textdocument_didopen(self, file_name: str, *, reload: bool = False):
-        if (not reload) and file_name in self.working_documents:
+        if (not reload) and file_name in self.workspace.documents:
             return
 
         view = self.active_window().find_open_file(file_name)
@@ -498,7 +506,7 @@ class PyserverHandler(api.BaseHandler):
             return
 
         document = BufferedDocument(view)
-        self.working_documents[file_name] = document
+        self.workspace.documents[file_name] = document
 
         self.client.send_notification(
             "textDocument/didOpen",
@@ -514,7 +522,7 @@ class PyserverHandler(api.BaseHandler):
 
     @session.must_begin
     def textdocument_didsave(self, file_name: str):
-        if document := self.working_documents.get(file_name):
+        if document := self.workspace.documents.get(file_name):
             self.client.send_notification(
                 "textDocument/didSave",
                 {"textDocument": {"uri": document.document_uri()}},
@@ -526,23 +534,23 @@ class PyserverHandler(api.BaseHandler):
 
     @session.must_begin
     def textdocument_didclose(self, file_name: str):
-        if document := self.working_documents.get(file_name):
+        if document := self.workspace.documents.get(file_name):
             self.client.send_notification(
                 "textDocument/didClose",
                 {"textDocument": {"uri": document.document_uri()}},
             )
             try:
-                del self.working_documents[file_name]
-                del self.diagnostics_map[file_name]
+                del self.workspace.documents[file_name]
+                del self.workspace.diagnostics[file_name]
             except KeyError:
                 pass
 
-            self.diagnostics_panel.set_content(self.diagnostics_map)
+            self.diagnostics_panel.set_content(self.workspace.diagnostics)
             self.diagnostics_panel.show()
 
     @session.must_begin
     def textdocument_didchange(self, file_name: str, changes: List[dict]):
-        if document := self.working_documents.get(file_name):
+        if document := self.workspace.documents.get(file_name):
             change_version = document.view.change_count()
             if change_version <= document.version:
                 return
@@ -562,7 +570,7 @@ class PyserverHandler(api.BaseHandler):
 
     @session.must_begin
     def textdocument_hover(self, file_name, row, col):
-        if document := self.working_documents.get(file_name):
+        if document := self.workspace.documents.get(file_name):
             self.client.send_request(
                 "textDocument/hover",
                 {
@@ -588,7 +596,7 @@ class PyserverHandler(api.BaseHandler):
 
     @session.must_begin
     def textdocument_completion(self, file_name, row, col):
-        if document := self.working_documents.get(file_name):
+        if document := self.workspace.documents.get(file_name):
             self.client.send_request(
                 "textDocument/completion",
                 {
@@ -614,17 +622,17 @@ class PyserverHandler(api.BaseHandler):
         file_name = api.uri_to_path(params["uri"])
         diagnostics = params["diagnostics"]
 
-        self.diagnostics_map[file_name] = diagnostics
+        self.workspace.diagnostics[file_name] = diagnostics
 
-        self.diagnostics_panel.set_content(self.diagnostics_map)
+        self.diagnostics_panel.set_content(self.workspace.diagnostics)
         self.diagnostics_panel.show()
 
-        if document := self.working_documents.get(file_name):
+        if document := self.workspace.documents.get(file_name):
             document.highlight_text(diagnostics)
 
     @session.must_begin
     def textdocument_formatting(self, file_name):
-        if document := self.working_documents.get(file_name):
+        if document := self.workspace.documents.get(file_name):
             self.client.send_request(
                 "textDocument/formatting",
                 {
@@ -646,7 +654,7 @@ class PyserverHandler(api.BaseHandler):
             changes = document_changes["edits"]
 
             DOCUMENT_CHANGE_EVENT.clear()
-            document = self.working_documents.get(
+            document = self.workspace.documents.get(
                 file_name, UnbufferedDocument(file_name)
             )
             document.apply_text_changes(changes)
@@ -673,7 +681,7 @@ class PyserverHandler(api.BaseHandler):
 
     @session.must_begin
     def textdocument_definition(self, file_name, row, col):
-        if document := self.working_documents.get(file_name):
+        if document := self.workspace.documents.get(file_name):
             self.client.send_request(
                 "textDocument/definition",
                 {
@@ -727,7 +735,7 @@ class PyserverHandler(api.BaseHandler):
 
     @session.must_begin
     def textdocument_preparerename(self, file_name, row, col):
-        if document := self.working_documents.get(file_name):
+        if document := self.workspace.documents.get(file_name):
             self.client.send_request(
                 "textDocument/prepareRename",
                 {
