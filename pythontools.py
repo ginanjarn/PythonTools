@@ -274,13 +274,12 @@ class BufferedDocument:
 
 class DiagnosticPanel:
     OUTPUT_PANEL_NAME = "pythontools_panel"
-    panel: sublime.View = None
 
-    def __init__(self, window: sublime.Window):
-        self.window = window
+    def __init__(self):
+        self.panel: sublime.View = None
 
     def _create_panel(self):
-        self.panel = self.window.create_output_panel(self.OUTPUT_PANEL_NAME)
+        self.panel = sublime.active_window().create_output_panel(self.OUTPUT_PANEL_NAME)
         self.panel.settings().set("gutter", False)
         self.panel.set_read_only(False)
 
@@ -307,7 +306,7 @@ class DiagnosticPanel:
         for file_name, diagnostics in diagnostics_map.items():
             build_message(file_name, diagnostics)
 
-        if not self.panel:
+        if not (self.panel and self.panel.is_valid()):
             self._create_panel()
 
         # recreate panel if assigned window has closed
@@ -326,13 +325,13 @@ class DiagnosticPanel:
 
     def show(self) -> None:
         """show output panel"""
-        self.window.run_command(
+        sublime.active_window().run_command(
             "show_panel", {"panel": f"output.{self.OUTPUT_PANEL_NAME}"}
         )
 
     def destroy(self):
         """destroy output panel"""
-        self.window.destroy_output_panel(self.OUTPUT_PANEL_NAME)
+        sublime.active_window().destroy_output_panel(self.OUTPUT_PANEL_NAME)
 
 
 class PyserverHandler(api.BaseHandler):
@@ -350,7 +349,7 @@ class PyserverHandler(api.BaseHandler):
         self._initialized = False
         self.diagnostics_map = {}
 
-        self.diagnostics_panel = DiagnosticPanel(self.active_window())
+        self.diagnostics_panel = DiagnosticPanel()
 
         # commands document target
         self.hover_target: Optional[BufferedDocument] = None
