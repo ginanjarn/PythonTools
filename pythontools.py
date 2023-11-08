@@ -836,24 +836,17 @@ def get_workspace_path(view: sublime.View) -> str:
     return str(Path(file_name).parent)
 
 
-class ViewEventListener(sublime_plugin.ViewEventListener):
-    def __init__(self, view: sublime.View):
-        super().__init__(view)
-        self.prev_file_name = None
-
-    def on_hover(self, point: int, hover_zone: HoverZone):
+class EventListener(sublime_plugin.EventListener):
+    def on_hover(self, view: sublime.View, point: int, hover_zone: HoverZone):
         # check point in valid source
-        if not (valid_context(self.view, point) and hover_zone == sublime.HOVER_TEXT):
+        if not (valid_context(view, point) and hover_zone == sublime.HOVER_TEXT):
             return
 
-        file_name = self.view.file_name()
-        row, col = self.view.rowcol(point)
+        row, col = view.rowcol(point)
 
-        threading.Thread(
-            target=self._on_hover, args=(self.view, file_name, row, col)
-        ).start()
+        threading.Thread(target=self._on_hover, args=(view, row, col)).start()
 
-    def _on_hover(self, view, file_name, row, col):
+    def _on_hover(self, view, row, col):
         # check if server available
         try:
             if HANDLER.ready():
@@ -876,7 +869,7 @@ class ViewEventListener(sublime_plugin.ViewEventListener):
     prev_completion_loc = 0
 
     def on_query_completions(
-        self, prefix: str, locations: List[int]
+        self, view: sublime.View, prefix: str, locations: List[int]
     ) -> sublime.CompletionList:
         if not HANDLER.ready():
             return None
@@ -884,18 +877,18 @@ class ViewEventListener(sublime_plugin.ViewEventListener):
         point = locations[0]
 
         # check point in valid source
-        if not valid_context(self.view, point):
+        if not valid_context(view, point):
             return
 
         if (
             document := HANDLER.action_target.completion
         ) and document.completion_ready():
-            word = self.view.word(self.prev_completion_loc)
+            word = view.word(self.prev_completion_loc)
             # point unchanged
             if point == self.prev_completion_loc:
                 show = True
             # point changed but still in same word
-            elif self.view.substr(word).isidentifier() and point in word:
+            elif view.substr(word).isidentifier() and point in word:
                 show = True
             else:
                 show = False
@@ -911,35 +904,25 @@ class ViewEventListener(sublime_plugin.ViewEventListener):
             return
 
         self.prev_completion_loc = point
-        file_name = self.view.file_name()
-        row, col = self.view.rowcol(point)
+        row, col = view.rowcol(point)
 
         threading.Thread(
-            target=self._on_query_completions, args=(self.view, file_name, row, col)
+            target=self._on_query_completions, args=(view, row, col)
         ).start()
 
-        self.view.run_command("hide_auto_complete")
+        view.run_command("hide_auto_complete")
 
-    def _on_query_completions(self, view, file_name, row, col):
+    def _on_query_completions(self, view, row, col):
         if HANDLER.ready():
             HANDLER.textdocument_completion(view, row, col)
 
-    def on_activated_async(self):
+    def on_activated_async(self, view: sublime.View):
         # check point in valid source
-        if not valid_context(self.view, 0):
+        if not valid_context(view, 0):
             return
 
-        file_name = self.view.file_name()
         if HANDLER.ready():
-            HANDLER.textdocument_didopen(self.view)
-
-            # Close older document if renamed.
-            # SublimeText only rename the 'file_name' but 'View' didn't closed.
-            if (prev_name := self.prev_file_name) and prev_name != file_name:
-                HANDLER.textdocument_didclose(self.view)
-                HANDLER.textdocument_didopen(self.view, reload=True)
-
-            self.prev_file_name = file_name
+            HANDLER.textdocument_didopen(view)
 
         else:
             if LOGGER.level == logging.DEBUG:
@@ -949,51 +932,51 @@ class ViewEventListener(sublime_plugin.ViewEventListener):
                 # initialize server
                 HANDLER.run_server()
 
-                HANDLER.initialize(self.view)
-                HANDLER.textdocument_didopen(self.view)
+                HANDLER.initialize(view)
+                HANDLER.textdocument_didopen(view)
 
             except api.ServerNotRunning:
                 pass
 
-    def on_post_save_async(self):
+    def on_post_save_async(self, view: sublime.View):
         # check point in valid source
-        if not valid_context(self.view, 0):
+        if not valid_context(view, 0):
             return
 
         if HANDLER.ready():
-            HANDLER.textdocument_didsave(self.view)
+            HANDLER.textdocument_didsave(view)
 
-    def on_close(self):
+    def on_close(self, view: sublime.View):
         # check point in valid source
-        if not valid_context(self.view, 0):
+        if not valid_context(view, 0):
             return
 
         if HANDLER.ready():
-            HANDLER.textdocument_didclose(self.view)
+            HANDLER.textdocument_didclose(view)
 
-    def on_load(self):
+    def on_load(self, view: sublime.View):
         # check point in valid source
-        if not valid_context(self.view, 0):
+        if not valid_context(view, 0):
             return
 
         if HANDLER.ready():
-            HANDLER.textdocument_didopen(self.view, reload=True)
+            HANDLER.textdocument_didopen(view, reload=True)
 
-    def on_reload(self):
+    def on_reload(self, view: sublime.View):
         # check point in valid source
-        if not valid_context(self.view, 0):
+        if not valid_context(view, 0):
             return
 
         if HANDLER.ready():
-            HANDLER.textdocument_didopen(self.view, reload=True)
+            HANDLER.textdocument_didopen(view, reload=True)
 
-    def on_revert(self):
+    def on_revert(self, view: sublime.View):
         # check point in valid source
-        if not valid_context(self.view, 0):
+        if not valid_context(view, 0):
             return
 
         if HANDLER.ready():
-            HANDLER.textdocument_didopen(self.view, reload=True)
+            HANDLER.textdocument_didopen(view, reload=True)
 
 
 class TextChangeListener(sublime_plugin.TextChangeListener):
