@@ -393,6 +393,15 @@ class Workspace:
                 return document
         return default
 
+    def get_documents(self, file_name: Optional[str] = None) -> List[BufferedDocument]:
+        """get documents.
+        If file_name assigned, return documents with file_name filtered.
+        """
+
+        if not file_name:
+            return [doc for _, doc in self.documents.items()]
+        return [doc for _, doc in self.documents.items() if doc.file_name == file_name]
+
 
 @dataclass
 class ActionTarget:
@@ -525,8 +534,15 @@ class PyserverHandler(api.BaseHandler):
         if (view in self.workspace.documents) and (not reload):
             return
 
+        file_name = view.file_name()
+        other = self.workspace.get_documents(file_name)
+
         document = BufferedDocument(view)
         self.workspace.documents[view] = document
+
+        # if document has opened in other View
+        if other:
+            return
 
         self.client.send_notification(
             "textDocument/didOpen",
@@ -556,10 +572,6 @@ class PyserverHandler(api.BaseHandler):
     def textdocument_didclose(self, view: sublime.View):
         file_name = view.file_name()
         if document := self.workspace.documents.get(view):
-            self.client.send_notification(
-                "textDocument/didClose",
-                {"textDocument": {"uri": document.document_uri()}},
-            )
             try:
                 del self.workspace.documents[view]
                 del self.workspace.diagnostics[file_name]
@@ -569,9 +581,20 @@ class PyserverHandler(api.BaseHandler):
             self.diagnostics_panel.set_content(self.workspace.diagnostics)
             self.diagnostics_panel.show()
 
+            # if document still opened in other View
+            if self.workspace.get_documents(file_name):
+                return
+
+            self.client.send_notification(
+                "textDocument/didClose",
+                {"textDocument": {"uri": document.document_uri()}},
+            )
+
     @session.must_begin
     def textdocument_didchange(self, view: sublime.View, changes: List[dict]):
-        if document := self.workspace.documents.get(view):
+        # document can be related to multiple View but has same file_name
+        file_name = view.file_name()
+        if document := self.workspace.get_document_by_name(file_name):
             change_version = document.view.change_count()
             if change_version <= document.version:
                 return
@@ -648,7 +671,7 @@ class PyserverHandler(api.BaseHandler):
         self.diagnostics_panel.set_content(self.workspace.diagnostics)
         self.diagnostics_panel.show()
 
-        if document := self.workspace.get_document_by_name(file_name):
+        for document in self.workspace.get_documents(file_name):
             document.highlight_text(diagnostics)
 
     @session.must_begin
