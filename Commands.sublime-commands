@@ -14,5 +14,21 @@
 		},
 		"caption": "Terminal: Open [pythontools]...",
 		"command": "open_terminal"
+	},
+	{
+		"caption" : "Format Code",
+		"command" : "pythontools_document_formatting",
+	},
+	{
+		"caption" : "Show Definition",
+		"command" : "pythontools_goto_definition",
+	},
+	{
+		"caption" : "Code Action",
+		"command" : "pythontools_code_action",
+	},
+	{
+		"caption" : "Rename symbol...",
+		"command" : "pythontools_rename",
 	}
 ]
