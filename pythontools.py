@@ -308,13 +308,8 @@ class DiagnosticPanel:
                     f"{short_name}:{row}:{col}: {message} ({source})\n"
                 )
 
-        try:
-            for file_name, diagnostics in diagnostics_map.items():
-                build_message(file_name, diagnostics)
-
-        except RuntimeError:
-            # maybe dictionary changed during iteration
-            return
+        for file_name, diagnostics in diagnostics_map.items():
+            build_message(file_name, diagnostics)
 
         if not (self.panel and self.panel.is_valid()):
             self._create_panel()
@@ -379,33 +374,68 @@ class Session:
         return wrapper
 
 
-@dataclass
 class Workspace:
-    documents: Dict[sublime.View, BufferedDocument] = None
-    diagnostics: Dict[str, dict] = None
+    def __init__(self):
+        self.documents: Dict[sublime.View, BufferedDocument] = {}
+        self.diagnostics: Dict[str, dict] = {}
 
-    def __post_init__(self):
-        self.documents = {}
-        self.diagnostics = {}
+        self.document_lock = threading.Lock()
+        self.diagnostic_lock = threading.RLock()
+
+    def get_document(
+        self, view: sublime.View, /, default: Any = None
+    ) -> Optional[BufferedDocument]:
+        return self.documents.get(view, default)
+
+    def set_document(self, view: sublime.View, document: BufferedDocument):
+        with self.document_lock:
+            self.documents[view] = document
+
+    def remove_document(self, view: sublime.View):
+        with self.document_lock:
+            try:
+                del self.documents[view]
+            except KeyError as err:
+                LOGGER.debug("document not found %s", err)
+                pass
 
     def get_document_by_name(
         self, file_name: str, /, default: Any = None
     ) -> Optional[BufferedDocument]:
         """get document by name"""
 
-        for view, document in self.documents.items():
-            if view.file_name() == file_name:
-                return document
-        return default
+        with self.document_lock:
+            for view, document in self.documents.items():
+                if view.file_name() == file_name:
+                    return document
+            return default
 
     def get_documents(self, file_name: Optional[str] = None) -> List[BufferedDocument]:
         """get documents.
         If file_name assigned, return documents with file_name filtered.
         """
+        with self.document_lock:
+            if not file_name:
+                return [doc for _, doc in self.documents.items()]
+            return [
+                doc for _, doc in self.documents.items() if doc.file_name == file_name
+            ]
 
-        if not file_name:
-            return [doc for _, doc in self.documents.items()]
-        return [doc for _, doc in self.documents.items() if doc.file_name == file_name]
+    def get_diagnostic(self, file_name: str) -> dict:
+        with self.diagnostic_lock:
+            return self.diagnostics.get(file_name)
+
+    def set_diagnostic(self, file_name: str, diagnostic: dict):
+        with self.diagnostic_lock:
+            self.diagnostics[file_name] = diagnostic
+
+    def remove_diagnostic(self, file_name: str):
+        with self.diagnostic_lock:
+            try:
+                del self.diagnostics[file_name]
+            except KeyError as err:
+                LOGGER.debug("diagnostic not found %s", err)
+                pass
 
 
 @dataclass
@@ -543,7 +573,7 @@ class PyserverHandler(api.BaseHandler):
         other = self.workspace.get_documents(file_name)
 
         document = BufferedDocument(view)
-        self.workspace.documents[view] = document
+        self.workspace.set_document(view, document)
 
         # if document has opened in other View
         if other:
@@ -563,7 +593,7 @@ class PyserverHandler(api.BaseHandler):
 
     @session.must_begin
     def textdocument_didsave(self, view: sublime.View):
-        if document := self.workspace.documents.get(view):
+        if document := self.workspace.get_document(view):
             self.client.send_notification(
                 "textDocument/didSave",
                 {"textDocument": {"uri": document.document_uri()}},
@@ -576,19 +606,17 @@ class PyserverHandler(api.BaseHandler):
     @session.must_begin
     def textdocument_didclose(self, view: sublime.View):
         file_name = view.file_name()
-        if document := self.workspace.documents.get(view):
-            try:
-                del self.workspace.documents[view]
-                del self.workspace.diagnostics[file_name]
-            except KeyError:
-                pass
-
-            self.diagnostics_panel.set_content(self.workspace.diagnostics)
-            self.diagnostics_panel.show()
+        if document := self.workspace.get_document(view):
+            self.workspace.remove_document(view)
 
             # if document still opened in other View
             if self.workspace.get_documents(file_name):
                 return
+
+            self.workspace.remove_diagnostic(file_name)
+
+            self.diagnostics_panel.set_content(self.workspace.diagnostics)
+            self.diagnostics_panel.show()
 
             self.client.send_notification(
                 "textDocument/didClose",
@@ -613,7 +641,7 @@ class PyserverHandler(api.BaseHandler):
 
     @session.must_begin
     def textdocument_hover(self, view, row, col):
-        if document := self.workspace.documents.get(view):
+        if document := self.workspace.get_document(view):
             self.client.send_request(
                 "textDocument/hover",
                 {
@@ -639,7 +667,7 @@ class PyserverHandler(api.BaseHandler):
 
     @session.must_begin
     def textdocument_completion(self, view, row, col):
-        if document := self.workspace.documents.get(view):
+        if document := self.workspace.get_document(view):
             self.client.send_request(
                 "textDocument/completion",
                 {
@@ -665,17 +693,18 @@ class PyserverHandler(api.BaseHandler):
         file_name = api.uri_to_path(params["uri"])
         diagnostics = params["diagnostics"]
 
-        self.workspace.diagnostics[file_name] = diagnostics
+        with self.workspace.diagnostic_lock:
+            self.workspace.set_diagnostic(file_name, diagnostics)
 
-        self.diagnostics_panel.set_content(self.workspace.diagnostics)
-        self.diagnostics_panel.show()
+            self.diagnostics_panel.set_content(self.workspace.diagnostics)
+            self.diagnostics_panel.show()
 
-        for document in self.workspace.get_documents(file_name):
-            document.highlight_text(diagnostics)
+            for document in self.workspace.get_documents(file_name):
+                document.highlight_text(diagnostics)
 
     @session.must_begin
     def textdocument_formatting(self, view):
-        if document := self.workspace.documents.get(view):
+        if document := self.workspace.get_document(view):
             self.client.send_request(
                 "textDocument/formatting",
                 {
@@ -724,7 +753,7 @@ class PyserverHandler(api.BaseHandler):
 
     @session.must_begin
     def textdocument_definition(self, view, row, col):
-        if document := self.workspace.documents.get(view):
+        if document := self.workspace.get_document(view):
             self.client.send_request(
                 "textDocument/definition",
                 {
@@ -778,7 +807,7 @@ class PyserverHandler(api.BaseHandler):
 
     @session.must_begin
     def textdocument_preparerename(self, view, row, col):
-        if document := self.workspace.documents.get(view):
+        if document := self.workspace.get_document(view):
             self.client.send_request(
                 "textDocument/prepareRename",
                 {
