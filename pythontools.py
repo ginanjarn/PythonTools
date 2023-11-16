@@ -878,7 +878,13 @@ def plugin_unloaded():
 
 
 def valid_context(view: sublime.View, point: int):
-    return view.file_name() and view.match_selector(point, "source.python")
+    if not (view and view.is_valid()):
+        return False
+    # console panel is valid 'source.python', we must check by file_name.
+    # file name only available for buffered file
+    if view.file_name() is None:
+        return False
+    return view.match_selector(point, "source.python")
 
 
 def get_workspace_path(view: sublime.View) -> str:
