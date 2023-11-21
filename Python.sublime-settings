@@ -9,4 +9,11 @@
 	// File indexing parses all files in the sidebar, and builds an index of
 	// their symbols. This is required for Goto Definition to work.
 	"index_files": false,
+
+	// Python executable path.
+	"python": "",
+
+	// Environment variables.
+	// Variables must stored as mapping eg. {"key":value}.
+	"envs": null
 }

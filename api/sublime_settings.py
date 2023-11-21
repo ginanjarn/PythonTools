@@ -3,13 +3,15 @@
 from contextlib import contextmanager
 import sublime
 
-SETTINGS_BASENAME = "Pythontools.sublime-settings"
+SETTINGS_BASENAME = "Python.sublime-settings"
 
 
 @contextmanager
-def Settings(save=False) -> sublime.Settings:
-    """settings manager"""
+def Settings(
+    *, base_name: str = SETTINGS_BASENAME, save: bool = False
+) -> sublime.Settings:
+    """sublime settings"""
 
-    yield sublime.load_settings(SETTINGS_BASENAME)
+    yield sublime.load_settings(base_name)
     if save:
-        sublime.save_settings(SETTINGS_BASENAME)
+        sublime.save_settings(base_name)

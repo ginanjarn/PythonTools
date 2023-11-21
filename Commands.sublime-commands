@@ -10,7 +10,7 @@
 	{
 		"args":
 		{
-			"settings_name": "Pythontools.sublime-settings"
+			"settings_name": "Python.sublime-settings"
 		},
 		"caption": "Terminal: Open [pythontools]...",
 		"command": "open_terminal"
