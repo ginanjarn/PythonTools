@@ -38,6 +38,14 @@ class PythontoolsSetEnvironmentCommand(sublime_plugin.WindowCommand):
         titles = [m.python_bin for m in managers]
         titles.append("Scan environments...")
 
+        def set_environment(manager):
+            pythonpath = manager.python_bin
+            environment = venv.get_environment(manager)
+
+            with Settings(save=True) as settings:
+                settings.set("python", pythonpath)
+                settings.set("envs", environment)
+
         def select_item(index=-1):
             if index < 0:
                 return
@@ -45,12 +53,9 @@ class PythontoolsSetEnvironmentCommand(sublime_plugin.WindowCommand):
                 self.window.run_command("pythontools_set_environment", {"scan": True})
                 return
 
-            pythonpath = managers[index].python_bin
-            environment = venv.get_environment(managers[index])
-
-            with Settings(save=True) as settings:
-                settings.set("python", pythonpath)
-                settings.set("envs", environment)
+            # we must set environment in thread to prevent blocking
+            thread = threading.Thread(target=set_environment, args=(managers[index],))
+            thread.start()
 
         self.window.show_quick_panel(titles, on_select=select_item)
 
