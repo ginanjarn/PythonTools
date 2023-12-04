@@ -25,6 +25,10 @@ sh = logging.StreamHandler()
 sh.setFormatter(fmt)
 LOGGER.addHandler(sh)
 
+# support type
+PathStr = str
+
+
 # custom kind
 KIND_PATH = (sublime.KIND_ID_VARIABLE, "p", "")
 KIND_VALUE = (sublime.KIND_ID_VARIABLE, "u", "")
@@ -126,7 +130,7 @@ class PythontoolsApplyTextChangesCommand(sublime_plugin.TextCommand):
 
 
 class UnbufferedDocument:
-    def __init__(self, file_name: str):
+    def __init__(self, file_name: PathStr):
         self._path = Path(file_name)
         self.text = self._path.read_text()
 
@@ -293,7 +297,7 @@ class DiagnosticPanel:
 
         message_buffer = StringIO()
 
-        def build_message(file_name: str, diagnostics: Dict[str, List[dict]]):
+        def build_message(file_name: PathStr, diagnostics: List[Dict[str, Any]]):
             for diagnostic in diagnostics:
                 short_name = Path(file_name).name
                 row = diagnostic["range"]["start"]["line"]
@@ -400,7 +404,7 @@ class Workspace:
                 pass
 
     def get_document_by_name(
-        self, file_name: str, /, default: Any = None
+        self, file_name: PathStr, /, default: Any = None
     ) -> Optional[BufferedDocument]:
         """get document by name"""
 
@@ -410,7 +414,9 @@ class Workspace:
                     return document
             return default
 
-    def get_documents(self, file_name: Optional[str] = None) -> List[BufferedDocument]:
+    def get_documents(
+        self, file_name: Optional[PathStr] = None
+    ) -> List[BufferedDocument]:
         """get documents.
         If file_name assigned, return documents with file_name filtered.
         """
@@ -421,15 +427,19 @@ class Workspace:
                 doc for _, doc in self.documents.items() if doc.file_name == file_name
             ]
 
-    def get_diagnostic(self, file_name: str) -> dict:
+    def get_diagnostic(self, file_name: PathStr) -> Dict[str, Any]:
         with self.diagnostic_lock:
             return self.diagnostics.get(file_name)
 
-    def set_diagnostic(self, file_name: str, diagnostic: dict):
+    def get_diagnostics(self) -> Dict[PathStr, Dict[str, Any]]:
+        with self.diagnostic_lock:
+            return self.diagnostics
+
+    def set_diagnostic(self, file_name: PathStr, diagnostic: dict):
         with self.diagnostic_lock:
             self.diagnostics[file_name] = diagnostic
 
-    def remove_diagnostic(self, file_name: str):
+    def remove_diagnostic(self, file_name: PathStr):
         with self.diagnostic_lock:
             try:
                 del self.diagnostics[file_name]
@@ -624,7 +634,7 @@ class PyserverHandler(api.BaseHandler):
 
             self.workspace.remove_diagnostic(file_name)
 
-            self.diagnostics_panel.set_content(self.workspace.diagnostics)
+            self.diagnostics_panel.set_content(self.workspace.get_diagnostics())
             self.diagnostics_panel.show()
 
             self.client.send_notification(
