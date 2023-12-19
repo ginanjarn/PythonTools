@@ -293,7 +293,6 @@ class DiagnosticPanel:
         self.panel.set_read_only(False)
 
     def set_content(self, text: str):
-
         if not (self.panel and self.panel.is_valid()):
             self._create_panel()
 
@@ -623,9 +622,7 @@ class PyserverHandler(api.BaseHandler):
 
             self.workspace.remove_diagnostic(file_name)
 
-            diagnostic_text = self._build_message(
-                self.workspace.get_diagnostics()
-            )
+            diagnostic_text = self._build_message(self.workspace.get_diagnostics())
             self.diagnostics_panel.set_content(diagnostic_text)
             self.diagnostics_panel.show()
 
@@ -730,9 +727,7 @@ class PyserverHandler(api.BaseHandler):
         self.workspace.set_diagnostic(file_name, diagnostics)
 
         with self.workspace.diagnostic_lock:
-            diagnostic_text = self._build_message(
-                self.workspace.get_diagnostics()
-            )
+            diagnostic_text = self._build_message(self.workspace.get_diagnostics())
 
             for document in self.workspace.get_documents(file_name):
                 document.highlight_text(diagnostics)
