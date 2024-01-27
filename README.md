@@ -25,5 +25,5 @@ Clone this repository with recursive submodule in SublimeText Packages directory
 > On Sublime Text menu: `Preferences` > `Browse Packages`
 
 ```bash
-git clone --recurse-submodules https://github.com/ginanjarn/pythontools.git
+git clone --recurse-submodules https://github.com/ginanjarn/PythonTools.git
 ```
