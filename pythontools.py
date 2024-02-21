@@ -757,8 +757,43 @@ class PyserverHandler(api.BaseHandler):
         elif result := params.get("result"):
             self.action_target.formatting.apply_text_changes(result)
 
+    def _create_document(self, file_name: str):
+        Path(file_name).touch()
+
+    def _rename_document(self, old_name: str, new_name: str):
+        Path(old_name).rename(new_name)
+        if view := sublime.active_window().find_open_file(old_name):
+            # retarget buffer to new path
+            view.retarget(new_name)
+
+    def _delete_document(self, file_name: str):
+        Path(file_name).unlink()
+        if view := sublime.active_window().find_open_file(file_name):
+            # close opened buffer
+            view.close()
+
     def _apply_edit(self, edit: dict):
         for document_changes in edit["documentChanges"]:
+            # documentChanges: TextEdit|CreateFile|RenameFile|DeleteFile
+
+            # File Resource Changes
+            if kind := document_changes.get("kind"):
+                if kind == "create":
+                    file_name = api.uri_to_path(document_changes["uri"])
+                    self._create_document(file_name)
+
+                elif kind == "rename":
+                    old_name = api.uri_to_path(document_changes["oldUri"])
+                    new_name = api.uri_to_path(document_changes["newUri"])
+                    self._rename_document(old_name, new_name)
+
+                elif kind == "delete":
+                    file_name = api.uri_to_path(document_changes["uri"])
+                    self._delete_document(file_name)
+
+                return
+
+            # TextEdit Changes
             file_name = api.uri_to_path(document_changes["textDocument"]["uri"])
             changes = document_changes["edits"]
 
