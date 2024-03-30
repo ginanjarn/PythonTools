@@ -16,6 +16,8 @@ from .api.sublime_settings import Settings
 def get_workspace_path(view: sublime.View) -> str:
     window = view.window()
     file_name = view.file_name()
+    if not file_name:
+        return ""
 
     if folders := [
         folder for folder in window.folders() if file_name.startswith(folder)
