@@ -439,6 +439,7 @@ class Workspace:
 class ActionTarget:
     hover: BufferedDocument = None
     completion: BufferedDocument = None
+    signature_help: BufferedDocument = None
     formatting: BufferedDocument = None
     definition: BufferedDocument = None
     rename: BufferedDocument = None
@@ -704,6 +705,42 @@ class PyserverHandler(api.BaseHandler):
                 pass
             else:
                 self.action_target.completion.show_completion(items)
+
+    @session.must_begin
+    def textdocument_signaturehelp(self, view, row, col):
+        if document := self.workspace.get_document(view):
+            self.client.send_request(
+                "textDocument/signatureHelp",
+                {
+                    "position": {"character": col, "line": row},
+                    "textDocument": {"uri": document.document_uri()},
+                },
+            )
+            self.action_target.signature_help = document
+
+    def handle_textdocument_signaturehelp(self, params: dict):
+        if err := params.get("error"):
+            print(err["message"])
+
+        elif result := params.get("result"):
+            try:
+                signatures = result["signatures"]
+                if not signatures:
+                    return
+
+                message = "".join(
+                    [
+                        "```python\n",
+                        "\n".join([s["label"] for s in signatures]),
+                        "\n```",
+                    ]
+                )
+                view = self.action_target.signature_help.view
+                row, col = view.rowcol(view.sel()[0].a)
+            except Exception:
+                pass
+            else:
+                self.action_target.signature_help.show_popup(message, row, col)
 
     def _build_message(self, diagnostics_map: Dict[PathStr, Any]) -> str:
         message_buffer = StringIO()
@@ -1050,11 +1087,22 @@ class EventListener(sublime_plugin.EventListener):
             target=self._on_query_completions, args=(view, row, col)
         ).start()
 
+        threading.Thread(
+            target=self._show_signature_help, args=(view, row, col, point)
+        ).start()
+
         view.run_command("hide_auto_complete")
 
     def _on_query_completions(self, view, row, col):
         if HANDLER.ready():
             HANDLER.textdocument_completion(view, row, col)
+
+    def _show_signature_help(self, view, row, col, point):
+        if view.is_popup_visible():
+            return
+
+        if view.match_selector(point, "meta.function-call.arguments"):
+            HANDLER.textdocument_signaturehelp(view, row, col)
 
     def on_activated_async(self, view: sublime.View):
         # check point in valid source
