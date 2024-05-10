@@ -15,7 +15,7 @@ import sublime
 import sublime_plugin
 from sublime import HoverZone
 
-from . import api
+from .api import lsp_client
 from .api.sublime_settings import Settings
 
 LOGGER = logging.getLogger(__name__)
@@ -197,8 +197,8 @@ class BufferedDocument:
 
         return self.view.substr(sublime.Region(0, self.view.size()))
 
-    def document_uri(self) -> api.URI:
-        return api.path_to_uri(self.file_name)
+    def document_uri(self) -> lsp_client.URI:
+        return lsp_client.path_to_uri(self.file_name)
 
     @property
     def language_id(self) -> str:
@@ -459,7 +459,7 @@ class ActionTarget:
     rename: BufferedDocument = None
 
 
-class PyserverHandler(api.BaseHandler):
+class PyserverHandler(lsp_client.BaseHandler):
     """"""
 
     session = Session()
@@ -469,8 +469,8 @@ class PyserverHandler(api.BaseHandler):
         self.server_path = Path(__file__).parent.joinpath("pyserver")
         # client initializer
         server_command = ["python", "-m", "pyserver", "-i"]
-        self.transport = api.StandardIO(server_command)
-        self.client = api.Client(self.transport, self)
+        self.transport = lsp_client.StandardIO(server_command)
+        self.client = lsp_client.Client(self.transport, self)
 
         # workspace status
         self._initializing = False
@@ -515,7 +515,7 @@ class PyserverHandler(api.BaseHandler):
                 self._reset_state()
 
                 settings = self.get_settings()
-                option = api.PopenOptions(
+                option = lsp_client.PopenOptions(
                     env=settings.get("envs"), cwd=self.server_path
                 )
                 self.client.run_server(option)
@@ -547,7 +547,7 @@ class PyserverHandler(api.BaseHandler):
             "initialize",
             {
                 "rootPath": workspace_path,
-                "rootUri": api.path_to_uri(workspace_path),
+                "rootUri": lsp_client.path_to_uri(workspace_path),
                 "capabilities": {
                     "textDocument": {
                         "hover": {
@@ -778,7 +778,7 @@ class PyserverHandler(api.BaseHandler):
         return "\n".join(messages)
 
     def handle_textdocument_publishdiagnostics(self, params: dict):
-        file_name = api.uri_to_path(params["uri"])
+        file_name = lsp_client.uri_to_path(params["uri"])
         diagnostics = params["diagnostics"]
 
         diagnostic_text = ""
@@ -834,22 +834,22 @@ class PyserverHandler(api.BaseHandler):
             # File Resource Changes
             if kind := document_changes.get("kind"):
                 if kind == "create":
-                    file_name = api.uri_to_path(document_changes["uri"])
+                    file_name = lsp_client.uri_to_path(document_changes["uri"])
                     self._create_document(file_name)
 
                 elif kind == "rename":
-                    old_name = api.uri_to_path(document_changes["oldUri"])
-                    new_name = api.uri_to_path(document_changes["newUri"])
+                    old_name = lsp_client.uri_to_path(document_changes["oldUri"])
+                    new_name = lsp_client.uri_to_path(document_changes["newUri"])
                     self._rename_document(old_name, new_name)
 
                 elif kind == "delete":
-                    file_name = api.uri_to_path(document_changes["uri"])
+                    file_name = lsp_client.uri_to_path(document_changes["uri"])
                     self._delete_document(file_name)
 
                 return
 
             # TextEdit Changes
-            file_name = api.uri_to_path(document_changes["textDocument"]["uri"])
+            file_name = lsp_client.uri_to_path(document_changes["textDocument"]["uri"])
             changes = document_changes["edits"]
 
             document = self.workspace.get_document_by_name(
@@ -899,7 +899,7 @@ class PyserverHandler(api.BaseHandler):
             current_view.show(visible_region, show_surrounds=False)
 
         def build_location(location: dict):
-            file_name = api.uri_to_path(location["uri"])
+            file_name = lsp_client.uri_to_path(location["uri"])
             row = location["range"]["start"]["line"]
             col = location["range"]["start"]["character"]
             return f"{file_name}:{row+1}:{col+1}"
@@ -1058,7 +1058,7 @@ class EventListener(sublime_plugin.EventListener):
                 HANDLER.textdocument_didopen(view)
                 HANDLER.textdocument_hover(view, row, col)
 
-        except api.ServerNotRunning:
+        except lsp_client.ServerNotRunning:
             pass
 
     def on_query_completions(
@@ -1137,7 +1137,7 @@ class EventListener(sublime_plugin.EventListener):
                 HANDLER.initialize(view)
                 HANDLER.textdocument_didopen(view)
 
-            except api.ServerNotRunning:
+            except lsp_client.ServerNotRunning:
                 pass
 
     def on_post_save_async(self, view: sublime.View):
