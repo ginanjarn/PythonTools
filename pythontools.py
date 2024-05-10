@@ -1,6 +1,7 @@
 """Python tools for Sublime Text"""
 
 import logging
+import queue
 import threading
 import time
 from collections import defaultdict
@@ -176,7 +177,7 @@ class BufferedDocument:
         self.view = view
 
         self.file_name = self.view.file_name()
-        self._cached_completion = None
+        self._cached_completion = queue.Queue(maxsize=1)
 
         self._add_view_settings()
 
@@ -229,17 +230,24 @@ class BufferedDocument:
                 kind=kind,
             )
 
-        self._cached_completion = [build_completion(c) for c in items]
+        temp = [build_completion(c) for c in items]
+        try:
+            self._cached_completion.put_nowait(temp)
+        except queue.Full:
+            # get current completion
+            _ = self._cached_completion.get()
+            self._cached_completion.put(temp)
+
         self._trigger_completion()
 
-    @property
-    def cached_completion(self):
-        temp = self._cached_completion
-        self._cached_completion = None
-        return temp
+    def pop_completion(self) -> List[sublime.CompletionItem]:
+        try:
+            return self._cached_completion.get_nowait()
+        except queue.Empty:
+            return []
 
     def completion_ready(self) -> bool:
-        return self._cached_completion is not None
+        return not self._cached_completion.empty()
 
     auto_complete_arguments = {
         "disable_auto_insert": True,
@@ -1078,7 +1086,7 @@ class EventListener(sublime_plugin.EventListener):
             else:
                 show = False
 
-            if (cache := document.cached_completion) and show:
+            if (cache := document.pop_completion()) and show:
                 return sublime.CompletionList(
                     cache, flags=sublime.INHIBIT_WORD_COMPLETIONS
                 )
