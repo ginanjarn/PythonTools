@@ -221,11 +221,13 @@ class BufferedDocument:
 
         def build_completion(completion: dict):
             text = completion["label"]
-            annotation = completion["detail"]
+            signature = completion["detail"]
             kind = convert_kind(completion["kind"])
 
             return sublime.CompletionItem(
-                trigger=text, completion=text, annotation=annotation, kind=kind
+                trigger=signature or text,
+                completion=text,
+                kind=kind,
             )
 
         self._cached_completion = [build_completion(c) for c in items]
@@ -240,14 +242,16 @@ class BufferedDocument:
     def completion_ready(self) -> bool:
         return self._cached_completion is not None
 
+    auto_complete_arguments = {
+        "disable_auto_insert": True,
+        "next_completion_if_showing": True,
+        "auto_complete_commit_on_tab": True,
+    }
+
     def _trigger_completion(self):
         self.view.run_command(
             "auto_complete",
-            {
-                "disable_auto_insert": True,
-                "next_completion_if_showing": True,
-                "auto_complete_commit_on_tab": True,
-            },
+            self.auto_complete_arguments,
         )
 
     def hide_completion(self):
@@ -1019,6 +1023,9 @@ def get_workspace_path(view: sublime.View) -> str:
 
 
 class EventListener(sublime_plugin.EventListener):
+    def __init__(self):
+        self.prev_completion_point = 0
+
     def on_hover(self, view: sublime.View, point: int, hover_zone: HoverZone):
         # check point in valid source
         if not (valid_context(view, point) and hover_zone == sublime.HOVER_TEXT):
@@ -1048,8 +1055,6 @@ class EventListener(sublime_plugin.EventListener):
         except api.ServerNotRunning:
             pass
 
-    prev_completion_loc = 0
-
     def on_query_completions(
         self, view: sublime.View, prefix: str, locations: List[int]
     ) -> sublime.CompletionList:
@@ -1065,9 +1070,9 @@ class EventListener(sublime_plugin.EventListener):
         if (
             document := HANDLER.action_target.completion
         ) and document.completion_ready():
-            word = view.word(self.prev_completion_loc)
+            word = view.word(self.prev_completion_point)
             # point unchanged
-            if point == self.prev_completion_loc:
+            if point == self.prev_completion_point:
                 show = True
             # point changed but still in same word
             elif view.substr(word).isidentifier() and point in word:
@@ -1083,7 +1088,7 @@ class EventListener(sublime_plugin.EventListener):
             document.hide_completion()
             return
 
-        self.prev_completion_loc = point
+        self.prev_completion_point = point
         row, col = view.rowcol(point)
 
         threading.Thread(
