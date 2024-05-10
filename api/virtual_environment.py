@@ -7,18 +7,61 @@ import os
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Iterator, Optional, Union
-from collections import namedtuple
 
 
 @dataclass
 class Manager:
-    """Base Environment manager"""
+    """Environment manager"""
 
     python_bin: str
     activate_command: str
 
 
-ProcessResult = namedtuple("ProcessResult", ["code", "stdout", "stderr"])
+class System(Manager):
+    """System environement"""
+
+
+class Conda(Manager):
+    """Conda environment"""
+
+
+class Venv(Manager):
+    """Venv environment"""
+
+
+@dataclass
+class ProcessResult:
+    code: int
+    stdout: str
+    stderr: str
+
+
+if os.name == "nt":
+    # if on Windows, hide process window
+    STARTUPINFO = subprocess.STARTUPINFO()
+    STARTUPINFO.dwFlags |= subprocess.SW_HIDE | subprocess.STARTF_USESHOWWINDOW
+else:
+    STARTUPINFO = None
+
+
+def run_childprocess(command: Union[list, str], **kwargs) -> ProcessResult:
+    if isinstance(command, str):
+        command = shlex.split(command)
+
+    print(f"execute: {shlex.join(command)}")
+    proc = subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        startupinfo=STARTUPINFO,
+        shell=True,
+        **kwargs,
+    )
+
+    stdout, stderr = proc.communicate()
+    stdout = stdout.replace(b"\r\n", b"\n").decode() if stdout else ""
+    stderr = stderr.replace(b"\r\n", b"\n").decode() if stderr else ""
+    return ProcessResult(proc.returncode, stdout, stderr)
 
 
 def get_environment(m: Manager) -> Optional[dict]:
@@ -28,7 +71,8 @@ def get_environment(m: Manager) -> Optional[dict]:
         return None
 
     get_env_script = "import os,json;print(json.dumps(os.environ.copy(),indent=2))"
-    command = f"{m.activate_command} && python -c '{get_env_script}'"
+    get_env_command = f"'{m.python_bin}' -c '{get_env_script}'"
+    command = f"{m.activate_command} && {get_env_command}"
 
     result = run_childprocess(command)
     if result.code == 0:
@@ -43,18 +87,6 @@ def scan(workdir: str) -> Iterator[Manager]:
     yield from scan_system()
     yield from scan_conda()
     yield from scan_venv(Path(workdir))
-
-
-class System(Manager):
-    """System"""
-
-
-class Conda(Manager):
-    """Conda"""
-
-
-class Venv(Manager):
-    """Venv"""
 
 
 # There some difference layout for windows and posix
@@ -72,7 +104,7 @@ else:
 
 def scan_system():
     for folder in os.environ["PATH"].split(os.pathsep):
-        pythonpath = Path(folder).joinpath("python.exe")
+        pythonpath = Path(folder).joinpath(PYTHONPATH)
 
         if pythonpath.is_file():
             yield System(str(pythonpath), None)
@@ -112,31 +144,3 @@ def scan_venv(workdir: Path):
 
         if pythonpath.is_file():
             yield Venv(pythonpath, f"'{ACTIVATE_PREFIX}{activatepath}'")
-
-
-if os.name == "nt":
-    # if on Windows, hide process window
-    STARTUPINFO = subprocess.STARTUPINFO()
-    STARTUPINFO.dwFlags |= subprocess.SW_HIDE | subprocess.STARTF_USESHOWWINDOW
-else:
-    STARTUPINFO = None
-
-
-def run_childprocess(command: Union[list, str]) -> ProcessResult:
-    if isinstance(command, str):
-        command = shlex.split(command)
-
-    print(f"execute: {shlex.join(command)}")
-    proc = subprocess.Popen(
-        command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        startupinfo=STARTUPINFO,
-        shell=True,
-    )
-
-    stdout, stderr = proc.communicate()
-    code = proc.poll()
-    stdout = stdout.replace(b"\r\n", b"\n").decode() if stdout else ""
-    stderr = stderr.replace(b"\r\n", b"\n").decode() if stderr else ""
-    return ProcessResult(code, stdout, stderr)
