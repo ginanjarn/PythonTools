@@ -260,16 +260,16 @@ class BufferedDocument:
     def apply_text_changes(self, changes: List[dict]):
         self.view.run_command("pythontools_apply_text_changes", {"changes": changes})
 
+    def get_diagnostic_region(self, diagnostic: dict):
+        start = diagnostic["range"]["start"]
+        end = diagnostic["range"]["end"]
+
+        start_point = self.view.text_point(start["line"], start["character"])
+        end_point = self.view.text_point(end["line"], end["character"])
+        return sublime.Region(start_point, end_point)
+
     def highlight_text(self, diagnostics: List[dict]):
-        def get_region(diagnostic):
-            start = diagnostic["range"]["start"]
-            end = diagnostic["range"]["end"]
-
-            start_point = self.view.text_point(start["line"], start["character"])
-            end_point = self.view.text_point(end["line"], end["character"])
-            return sublime.Region(start_point, end_point)
-
-        regions = [get_region(d) for d in diagnostics]
+        regions = [self.get_diagnostic_region(d) for d in diagnostics]
         key = "pythontools_diagnostic"
 
         self.view.add_regions(
