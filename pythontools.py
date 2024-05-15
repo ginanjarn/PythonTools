@@ -221,12 +221,18 @@ class BufferedDocument:
 
         def build_completion(completion: dict):
             text = completion["label"]
+            try:
+                insert_text = completion["textEdit"]["newText"]
+            except KeyError:
+                insert_text = text
+
             signature = completion["detail"]
             kind = convert_kind(completion["kind"])
 
-            return sublime.CompletionItem(
-                trigger=signature or text,
-                completion=text,
+            return sublime.CompletionItem.snippet_completion(
+                trigger=text,
+                snippet=insert_text,
+                annotation=signature,
                 kind=kind,
             )
 
