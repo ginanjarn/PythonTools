@@ -778,7 +778,7 @@ class PyserverHandler(lsp_client.BaseHandler):
             # natural line index start with 1
             row += 1
 
-            return f"{short_name}:{row}:{col}: {message} ({source})\n"
+            return f"{short_name}:{row}:{col}: {message} ({source})"
 
         for file_name, diagnostics in diagnostics_map.items():
             lines = [build_line(file_name, item) for item in diagnostics]
