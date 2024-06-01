@@ -1047,8 +1047,11 @@ class EventListener(sublime_plugin.EventListener):
             return
 
         row, col = view.rowcol(point)
+        if HANDLER.ready():
+            HANDLER.textdocument_hover(view, row, col)
 
-        threading.Thread(target=self._on_hover, args=(view, row, col)).start()
+        else:
+            threading.Thread(target=self._on_hover, args=(view, row, col)).start()
 
     def _on_hover(self, view, row, col):
 
@@ -1073,7 +1076,7 @@ class EventListener(sublime_plugin.EventListener):
 
         # check point in valid source
         if not valid_context(view, point):
-            return
+            return None
 
         if (
             document := HANDLER.action_target.completion
@@ -1094,31 +1097,25 @@ class EventListener(sublime_plugin.EventListener):
                 )
 
             document.hide_completion()
-            return
+            return None
 
         self.prev_completion_point = point
         row, col = view.rowcol(point)
 
-        threading.Thread(
-            target=self._on_query_completions, args=(view, row, col)
-        ).start()
-
-        threading.Thread(
-            target=self._show_signature_help, args=(view, row, col, point)
-        ).start()
-
+        HANDLER.textdocument_completion(view, row, col)
         view.run_command("hide_auto_complete")
 
-    def _on_query_completions(self, view, row, col):
-        if HANDLER.ready():
-            HANDLER.textdocument_completion(view, row, col)
+        self._show_signature_help(view, row, col, point)
+        return None
 
     def _show_signature_help(self, view, row, col, point):
-        if view.is_popup_visible():
+        # hide active popup
+        view.hide_popup()
+        # only request signature on function arguments
+        if not view.match_selector(point, "meta.function-call.arguments"):
             return
 
-        if view.match_selector(point, "meta.function-call.arguments"):
-            HANDLER.textdocument_signaturehelp(view, row, col)
+        HANDLER.textdocument_signaturehelp(view, row, col)
 
     def on_activated_async(self, view: sublime.View):
         # check point in valid source
