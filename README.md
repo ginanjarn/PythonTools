@@ -10,7 +10,7 @@ This plugin is for you who want use feature like Visual Studio Code capability b
 
 # Requirements
 * **Sublime Text** build `4050` or later
-* `Markdown Popup` sublime plugin. ( repo `https://github.com/ginanjarn/markdown_popup.git` )
+* `MarkedPopup` sublime plugin. ( repo `https://github.com/ginanjarn/MarkedPopup.git` )
 * **Python 3.8** or later
 * Python modules:
 	* `Jedi`

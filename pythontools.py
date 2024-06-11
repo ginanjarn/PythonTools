@@ -213,7 +213,9 @@ class BufferedDocument:
 
     def show_popup(self, text: str, row: int, col: int):
         point = self.view.text_point(row, col)
-        self.view.run_command("markdown_popup", {"text": text, "point": point})
+        self.view.run_command(
+            "marked_popup", {"location": point, "text": text, "markup": "markdown"}
+        )
 
     def show_completion(self, items: List[dict]):
         def convert_kind(kind_num: int):
