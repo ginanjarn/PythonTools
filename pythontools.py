@@ -294,7 +294,7 @@ class BufferedDocument:
         except queue.Empty:
             return []
 
-    def completion_ready(self) -> bool:
+    def is_completion_available(self) -> bool:
         return not self._cached_completion.empty()
 
     auto_complete_arguments = {
@@ -1127,7 +1127,7 @@ class EventListener(sublime_plugin.EventListener):
 
         if (
             document := HANDLER.action_target.completion
-        ) and document.completion_ready():
+        ) and document.is_completion_available():
             word = view.word(self.prev_completion_point)
             # point unchanged
             if point == self.prev_completion_point:
