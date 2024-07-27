@@ -7,6 +7,7 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass
 from functools import wraps
+from io import StringIO
 from pathlib import Path
 from typing import List, Dict, Optional, Any
 
@@ -678,13 +679,7 @@ class PyserverHandler(lsp_client.BaseHandler):
                 return
 
             self.workspace.remove_invalid_diagnostic()
-
-            diagnostic_text = self._build_diagnostic_message(
-                self.workspace.get_diagnostics()
-            )
-
-            self.diagnostics_panel.set_content(diagnostic_text)
-            self.diagnostics_panel.show()
+            self._show_diagnostic_report()
 
             self.client.send_notification(
                 "textDocument/didClose",
@@ -801,7 +796,6 @@ class PyserverHandler(lsp_client.BaseHandler):
                 self.action_target.signature_help.show_popup(message, row, col)
 
     def _build_diagnostic_message(self, diagnostics_map: Dict[PathStr, Any]) -> str:
-        messages = []
 
         def build_line(file_name, diagnostic):
             short_name = Path(file_name).name
@@ -813,32 +807,34 @@ class PyserverHandler(lsp_client.BaseHandler):
             # natural line index start with 1
             row += 1
 
-            return f"{short_name}:{row}:{col}: {message} ({source})"
+            return f"{short_name}:{row}:{col}: {message} ({source})\n"
 
+        message_buffer = StringIO()
         for file_name, diagnostics in diagnostics_map.items():
-            lines = [build_line(file_name, item) for item in diagnostics]
-            messages.extend(lines)
+            for diagnostic in diagnostics:
+                message_buffer.write(build_line(file_name, diagnostic))
 
-        return "\n".join(messages)
+        return message_buffer.getvalue()
+
+    def _show_diagnostic_report(self):
+        with self.workspace.diagnostic_lock:
+            diagnostic_map = self.workspace.get_diagnostics()
+            diagnostic_text = self._build_diagnostic_message(diagnostic_map)
+
+        self.diagnostics_panel.set_content(diagnostic_text)
+        self.diagnostics_panel.show()
 
     def handle_textdocument_publishdiagnostics(self, params: dict):
         file_name = lsp_client.uri_to_path(params["uri"])
         diagnostics = params["diagnostics"]
 
-        diagnostic_text = ""
         self.workspace.set_diagnostic(file_name, diagnostics)
+        self._show_diagnostic_report()
 
         # Ensure diagnostics unchanged while buid message and applying syntax highlight
         with self.workspace.diagnostic_lock:
-            diagnostic_text = self._build_diagnostic_message(
-                self.workspace.get_diagnostics()
-            )
-
             for document in self.workspace.get_documents(file_name):
                 document.highlight_text(diagnostics)
-
-        self.diagnostics_panel.set_content(diagnostic_text)
-        self.diagnostics_panel.show()
 
     @session.must_begin
     def textdocument_formatting(self, view):
