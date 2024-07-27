@@ -135,17 +135,7 @@ class TextHighlighter:
     def __init__(self, view: sublime.View):
         self.view = view
 
-    def get_region(self, diagnostic: dict):
-        start = diagnostic["range"]["start"]
-        end = diagnostic["range"]["end"]
-
-        start_point = self.view.text_point(start["line"], start["character"])
-        end_point = self.view.text_point(end["line"], end["character"])
-        return sublime.Region(start_point, end_point)
-
-    def apply(self, diagnostics: List[dict]):
-        regions = [self.get_region(d) for d in diagnostics]
-
+    def apply(self, regions: List[sublime.Region]):
         self.view.add_regions(
             key=self.REGIONS_KEY,
             regions=regions,
@@ -326,7 +316,9 @@ class BufferedDocument:
     def highlight_text(self, diagnostics: List[dict]):
         highligter = TextHighlighter(self.view)
         highligter.clear()
-        highligter.apply(diagnostics)
+
+        regions = [self.get_diagnostic_region(d) for d in diagnostics]
+        highligter.apply(regions)
 
 
 class DiagnosticPanel:
