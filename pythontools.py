@@ -213,7 +213,7 @@ class UnbufferedDocument:
 
 class BufferedDocument:
     VIEW_SETTINGS = {
-        "show_definition": False,
+        "show_definitions": False,
         "auto_complete_use_index": False,
     }
 
