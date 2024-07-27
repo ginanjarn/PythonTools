@@ -949,7 +949,7 @@ class PyserverHandler(lsp_client.BaseHandler):
         visible_region = current_view.visible_region()
 
         def restore_selection():
-            self.active_window().focus_view(current_view)
+            sublime.active_window().focus_view(current_view)
             current_view.sel().clear()
             current_view.sel().add_all(current_sel)
             current_view.show(visible_region, show_surrounds=False)
@@ -969,13 +969,13 @@ class PyserverHandler(lsp_client.BaseHandler):
                 return
 
             flags = sublime.ENCODED_POSITION
-            self.active_window().open_file(locations[index], flags=flags)
+            sublime.active_window().open_file(locations[index], flags=flags)
 
         def preview_location(index):
             flags = sublime.ENCODED_POSITION | sublime.TRANSIENT
-            self.active_window().open_file(locations[index], flags=flags)
+            sublime.active_window().open_file(locations[index], flags=flags)
 
-        self.active_window().show_quick_panel(
+        sublime.active_window().show_quick_panel(
             items=locations,
             on_select=open_location,
             flags=sublime.MONOSPACE_FONT,
@@ -1025,7 +1025,7 @@ class PyserverHandler(lsp_client.BaseHandler):
         def request_rename(new_name):
             self.textdocument_rename(new_name, start["line"], start["character"])
 
-        self.active_window().show_input_panel(
+        sublime.active_window().show_input_panel(
             caption="rename",
             initial_text=self.action_target.rename.view.substr(
                 sublime.Region(start_point, end_point)
