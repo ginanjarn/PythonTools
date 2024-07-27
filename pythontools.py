@@ -248,8 +248,6 @@ class BufferedDocument:
         )
 
     def show_completion(self, items: List[dict]):
-        def convert_kind(kind_num: int):
-            return COMPLETION_KIND_MAP[kind_num]
 
         def build_completion(completion: dict):
             text = completion["label"]
@@ -259,7 +257,7 @@ class BufferedDocument:
                 insert_text = text
 
             signature = completion["detail"]
-            kind = convert_kind(completion["kind"])
+            kind = COMPLETION_KIND_MAP[completion["kind"]]
 
             return sublime.CompletionItem.snippet_completion(
                 trigger=text,
