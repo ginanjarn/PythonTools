@@ -532,7 +532,7 @@ class PyserverHandler(lsp_client.BaseHandler):
             sublime.active_window().run_command("pythontools_set_environment")
             return {}
 
-    def ready(self) -> bool:
+    def is_ready(self) -> bool:
         return self.client.server_running() and self.session.is_begin()
 
     run_server_lock = threading.Lock()
@@ -1055,7 +1055,7 @@ class EventListener(sublime_plugin.EventListener):
             return
 
         row, col = view.rowcol(point)
-        if HANDLER.ready():
+        if HANDLER.is_ready():
             HANDLER.textdocument_hover(view, row, col)
 
         else:
@@ -1064,7 +1064,7 @@ class EventListener(sublime_plugin.EventListener):
     def _on_hover(self, view, row, col):
 
         # initialize server if not ready
-        if not HANDLER.ready():
+        if not HANDLER.is_ready():
             HANDLER.run_server()
             HANDLER.initialize(view)
 
@@ -1077,7 +1077,7 @@ class EventListener(sublime_plugin.EventListener):
     def on_query_completions(
         self, view: sublime.View, prefix: str, locations: List[int]
     ) -> sublime.CompletionList:
-        if not HANDLER.ready():
+        if not HANDLER.is_ready():
             return None
 
         point = locations[0]
@@ -1130,7 +1130,7 @@ class EventListener(sublime_plugin.EventListener):
         if not valid_context(view, 0):
             return
 
-        if HANDLER.ready():
+        if HANDLER.is_ready():
             HANDLER.textdocument_didopen(view)
             return
 
@@ -1147,7 +1147,7 @@ class EventListener(sublime_plugin.EventListener):
         if not valid_context(view, 0):
             return
 
-        if HANDLER.ready():
+        if HANDLER.is_ready():
             HANDLER.textdocument_didsave(view)
 
     def on_close(self, view: sublime.View):
@@ -1155,7 +1155,7 @@ class EventListener(sublime_plugin.EventListener):
         if not valid_context(view, 0):
             return
 
-        if HANDLER.ready():
+        if HANDLER.is_ready():
             HANDLER.textdocument_didclose(view)
 
     def on_load(self, view: sublime.View):
@@ -1163,7 +1163,7 @@ class EventListener(sublime_plugin.EventListener):
         if not valid_context(view, 0):
             return
 
-        if HANDLER.ready():
+        if HANDLER.is_ready():
             HANDLER.textdocument_didopen(view, reload=True)
 
     def on_reload(self, view: sublime.View):
@@ -1171,7 +1171,7 @@ class EventListener(sublime_plugin.EventListener):
         if not valid_context(view, 0):
             return
 
-        if HANDLER.ready():
+        if HANDLER.is_ready():
             HANDLER.textdocument_didopen(view, reload=True)
 
     def on_revert(self, view: sublime.View):
@@ -1179,7 +1179,7 @@ class EventListener(sublime_plugin.EventListener):
         if not valid_context(view, 0):
             return
 
-        if HANDLER.ready():
+        if HANDLER.is_ready():
             HANDLER.textdocument_didopen(view, reload=True)
 
 
@@ -1191,7 +1191,7 @@ class TextChangeListener(sublime_plugin.TextChangeListener):
         if not valid_context(view, 0):
             return
 
-        if HANDLER.ready():
+        if HANDLER.is_ready():
             HANDLER.textdocument_didchange(
                 view, [self.change_as_rpc(c) for c in changes]
             )
@@ -1212,7 +1212,7 @@ class TextChangeListener(sublime_plugin.TextChangeListener):
 
 class PythontoolsDocumentFormattingCommand(sublime_plugin.TextCommand):
     def run(self, edit: sublime.Edit):
-        if HANDLER.ready():
+        if HANDLER.is_ready():
             HANDLER.textdocument_formatting(self.view)
 
     def is_visible(self):
@@ -1223,7 +1223,7 @@ class PythontoolsGotoDefinitionCommand(sublime_plugin.TextCommand):
     def run(self, edit: sublime.Edit, event: Optional[dict] = None):
         cursor = self.view.sel()[0]
         point = event["text_point"] if event else cursor.a
-        if HANDLER.ready():
+        if HANDLER.is_ready():
             start_row, start_col = self.view.rowcol(point)
             HANDLER.textdocument_definition(self.view, start_row, start_col)
 
@@ -1238,7 +1238,7 @@ class PythontoolsRenameCommand(sublime_plugin.TextCommand):
     def run(self, edit: sublime.Edit, event: Optional[dict] = None):
         cursor = self.view.sel()[0]
         point = event["text_point"] if event else cursor.a
-        if HANDLER.ready():
+        if HANDLER.is_ready():
             # move cursor to point
             self.view.sel().clear()
             self.view.sel().add(point)
@@ -1259,4 +1259,4 @@ class PythontoolsTerminateCommand(sublime_plugin.WindowCommand):
             HANDLER.terminate()
 
     def is_visible(self):
-        return HANDLER and HANDLER.ready()
+        return HANDLER and HANDLER.is_ready()
