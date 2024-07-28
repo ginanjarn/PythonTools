@@ -987,23 +987,22 @@ class PyserverHandler(lsp_client.BaseHandler):
         )
 
     def _input_rename(self, symbol_location: dict):
+        view = self.action_target.rename.view
+
         start = symbol_location["range"]["start"]
-        start_point = self.action_target.rename.view.text_point(
-            start["line"], start["character"]
-        )
+        start_point = view.text_point(start["line"], start["character"])
         end = symbol_location["range"]["end"]
-        end_point = self.action_target.rename.view.text_point(
-            end["line"], end["character"]
-        )
+        end_point = view.text_point(end["line"], end["character"])
+
+        region = sublime.Region(start_point, end_point)
+        old_name = view.substr(region)
 
         def request_rename(new_name):
             self.textdocument_rename(new_name, start["line"], start["character"])
 
         sublime.active_window().show_input_panel(
             caption="rename",
-            initial_text=self.action_target.rename.view.substr(
-                sublime.Region(start_point, end_point)
-            ),
+            initial_text=old_name,
             on_done=request_rename,
             on_change=None,
             on_cancel=None,
