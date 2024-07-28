@@ -621,33 +621,28 @@ class PyserverHandler(lsp_client.BaseHandler):
             if opened_document.file_name == file_name and (not reload):
                 return
 
-            # In Sublime Text, rename file only retarget to new file
-            # but the view is not closed.
+            # In SublimeText, rename file only retarget to new path
+            # but the 'View' is not closed.
             # Close older document then reopen with new name.
             self.textdocument_didclose(view)
-
-        # document may open in other views
-        other_documents = self.workspace.get_documents(file_name)
 
         document = BufferedDocument(view)
         self.workspace.add_document(document)
 
-        # if document has opened in other View
-        if other_documents:
-            LOGGER.debug("%s has opened in %s", file_name, other_documents)
-            return
-
-        self.client.send_notification(
-            "textDocument/didOpen",
-            {
-                "textDocument": {
-                    "languageId": document.language_id,
-                    "text": document.text,
-                    "uri": document.document_uri(),
-                    "version": document.version,
-                }
-            },
-        )
+        # Document maybe opened in multiple 'View', send notification
+        # only on first opening document.
+        if len(self.workspace.get_documents(file_name)) == 1:
+            self.client.send_notification(
+                "textDocument/didOpen",
+                {
+                    "textDocument": {
+                        "languageId": document.language_id,
+                        "text": document.text,
+                        "uri": document.document_uri(),
+                        "version": document.version,
+                    }
+                },
+            )
 
     @session.must_begin
     def textdocument_didsave(self, view: sublime.View):
