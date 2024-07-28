@@ -210,11 +210,12 @@ class BufferedDocument:
 
     def __init__(self, view: sublime.View):
         self.view = view
-
+        self.window = view.window()
         self.file_name = self.view.file_name()
-        self._cached_completion = queue.Queue(maxsize=1)
+        self.language_id = "python"
 
         self.view.settings().update(self.VIEW_SETTINGS)
+        self._cached_completion = queue.Queue(maxsize=1)
 
     @property
     def version(self) -> int:
@@ -230,14 +231,6 @@ class BufferedDocument:
 
     def document_uri(self) -> lsp_client.URI:
         return lsp_client.path_to_uri(self.file_name)
-
-    @property
-    def language_id(self) -> str:
-        return "python"
-
-    @property
-    def window(self) -> sublime.Window:
-        return self.view.window()
 
     def save(self):
         self.view.run_command("save")
