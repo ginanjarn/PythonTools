@@ -223,7 +223,7 @@ class StandardIO(Transport):
 
         prefix = f"[{self.command[0]}]"
         while bline := self.stderr.readline():
-            print(prefix, bline.strip().decode())
+            print(prefix, bline.rstrip().decode())
 
         # else:
         return
