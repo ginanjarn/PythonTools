@@ -714,14 +714,10 @@ class PyserverHandler(lsp_client.BaseHandler):
             print(err["message"])
 
         elif result := params.get("result"):
-            try:
-                message = result["contents"]["value"]
-                start = result["range"]["start"]
-                row, col = start["line"], start["character"]
-            except Exception:
-                pass
-            else:
-                self.action_target.hover.show_popup(message, row, col)
+            message = result["contents"]["value"]
+            start = result["range"]["start"]
+            row, col = start["line"], start["character"]
+            self.action_target.hover.show_popup(message, row, col)
 
     @session.must_begin
     def textdocument_completion(self, view, row, col):
@@ -740,12 +736,8 @@ class PyserverHandler(lsp_client.BaseHandler):
             print(err["message"])
 
         elif result := params.get("result"):
-            try:
-                items = result["items"]
-            except Exception:
-                pass
-            else:
-                self.action_target.completion.show_completion(items)
+            items = result["items"]
+            self.action_target.completion.show_completion(items)
 
     @session.must_begin
     def textdocument_signaturehelp(self, view, row, col):
@@ -764,24 +756,20 @@ class PyserverHandler(lsp_client.BaseHandler):
             print(err["message"])
 
         elif result := params.get("result"):
-            try:
-                signatures = result["signatures"]
-                if not signatures:
-                    return
+            signatures = result["signatures"]
+            if not signatures:
+                return
 
-                message = "".join(
-                    [
-                        "```python\n",
-                        "\n".join([s["label"] for s in signatures]),
-                        "\n```",
-                    ]
-                )
-                view = self.action_target.signature_help.view
-                row, col = view.rowcol(view.sel()[0].a)
-            except Exception:
-                pass
-            else:
-                self.action_target.signature_help.show_popup(message, row, col)
+            message = "".join(
+                [
+                    "```python\n",
+                    "\n".join([s["label"] for s in signatures]),
+                    "\n```",
+                ]
+            )
+            view = self.action_target.signature_help.view
+            row, col = view.rowcol(view.sel()[0].a)
+            self.action_target.signature_help.show_popup(message, row, col)
 
     def _build_diagnostic_message(self, diagnostics_map: Dict[PathStr, Any]) -> str:
 
