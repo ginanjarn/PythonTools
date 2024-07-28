@@ -61,7 +61,7 @@ class PythontoolsSetEnvironmentCommand(sublime_plugin.WindowCommand):
 
         self.window.show_quick_panel(titles, on_select=select_item)
 
-    def scan_managers(self) -> Iterator[venv.Manager]:
+    def scan_managers(self) -> Iterator[venv.EnvironmentManager]:
         if view := self.window.active_view():
             workdir = get_workspace_path(view)
         else:
@@ -71,18 +71,18 @@ class PythontoolsSetEnvironmentCommand(sublime_plugin.WindowCommand):
 
     cache_path = Path(__file__).parent.joinpath("var/environment_managers.json")
 
-    def load_cache(self) -> Iterator[venv.Manager]:
+    def load_cache(self) -> Iterator[venv.EnvironmentManager]:
         if not self.cache_path.is_file():
             return
 
         data = json.loads(self.cache_path.read_text())
         for item in data:
-            yield venv.Manager(
+            yield venv.EnvironmentManager(
                 python_bin=item["python_bin"],
                 activate_command=item["activate_command"],
             )
 
-    def save_cache(self, managers: Iterable[venv.Manager]) -> None:
+    def save_cache(self, managers: Iterable[venv.EnvironmentManager]) -> None:
         dict_managers = [asdict(m) for m in managers]
 
         cache_dir = self.cache_path.parent

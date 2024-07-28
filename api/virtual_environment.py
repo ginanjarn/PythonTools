@@ -10,22 +10,22 @@ from typing import Iterator, Optional, Union
 
 
 @dataclass
-class Manager:
+class EnvironmentManager:
     """Environment manager"""
 
     python_bin: str
     activate_command: str
 
 
-class System(Manager):
-    """System environement"""
+class Global(EnvironmentManager):
+    """Global environement"""
 
 
-class Conda(Manager):
+class Conda(EnvironmentManager):
     """Conda environment"""
 
 
-class Venv(Manager):
+class Venv(EnvironmentManager):
     """Venv environment"""
 
 
@@ -64,7 +64,7 @@ def run_childprocess(command: Union[list, str], **kwargs) -> ProcessResult:
     return ProcessResult(proc.returncode, stdout, stderr)
 
 
-def get_environment(m: Manager) -> Optional[dict]:
+def get_environment(m: EnvironmentManager) -> Optional[dict]:
     """get environment"""
 
     if not m.activate_command:
@@ -82,9 +82,10 @@ def get_environment(m: Manager) -> Optional[dict]:
     return None
 
 
-def scan(workdir: str) -> Iterator[Manager]:
+def scan(workdir: str) -> Iterator[EnvironmentManager]:
     """scan available environment manager"""
-    yield from scan_system()
+
+    yield from scan_global()
     yield from scan_conda()
     yield from scan_venv(Path(workdir))
 
@@ -92,32 +93,34 @@ def scan(workdir: str) -> Iterator[Manager]:
 # There some difference layout for windows and posix
 if os.name == "nt":
     BINARY_PATH = "Scripts"
-    PYTHONPATH = "python.exe"
+    PYTHON = "python.exe"
     # activate environment call 'Scripts/activate'
-    ACTIVATE_PREFIX = ""
+    VENV_ACTIVATE_PREFIX = ""
 else:
     BINARY_PATH = "bin"
-    PYTHONPATH = BINARY_PATH + "/" + "python"
+    PYTHON = os.path.join(BINARY_PATH, "python")
     # activate environment call 'source bin/activate'
-    ACTIVATE_PREFIX = "source "  # in posix 'source bin/activate'
+    VENV_ACTIVATE_PREFIX = "source "
 
 
-def scan_system():
+def scan_global():
+    """scan global environment"""
+
     for folder in os.environ["PATH"].split(os.pathsep):
-        pythonpath = Path(folder).joinpath(PYTHONPATH)
+        pythonpath = Path(folder).joinpath(PYTHON)
 
         if pythonpath.is_file():
-            yield System(str(pythonpath), None)
+            yield Global(str(pythonpath), None)
 
 
-def scan_conda_envs(condapath: Path, basepath: Path):
-    condapath = basepath.joinpath("condabin", "conda")
+def scan_conda_envs(condabin: Path, basepath: Path):
+    condabin = basepath.joinpath("condabin", "conda")
     folders = [path for path in basepath.glob("envs/*") if path.is_dir()]
     for folder in folders:
-        pythonpath = folder.joinpath(PYTHONPATH)
+        pythonpath = folder.joinpath(PYTHON)
 
         if pythonpath.is_file():
-            yield Conda(str(pythonpath), f"'{condapath}' activate '{folder}'")
+            yield Conda(str(pythonpath), f"'{condabin}' activate '{folder}'")
 
 
 def scan_conda():
@@ -127,20 +130,22 @@ def scan_conda():
     home = Path().home()
     folders = [path for path in home.glob("*conda*") if path.is_dir()]
     for folder in folders:
-        pythonpath = folder.joinpath(PYTHONPATH)
+        pythonpath = folder.joinpath(PYTHON)
 
         if pythonpath.is_file():
-            condapath = folder.joinpath("condabin", "conda")
-            yield Conda(str(pythonpath), f"'{condapath}' activate '{folder}'")
+            condabin = folder.joinpath("condabin", "conda")
+            yield Conda(str(pythonpath), f"'{condabin}' activate '{folder}'")
 
-            yield from scan_conda_envs(condapath, folder)
+            yield from scan_conda_envs(condabin, folder)
 
 
 def scan_venv(workdir: Path):
+    """scan venv environment"""
+
     folders = [path for path in workdir.iterdir() if path.is_dir()]
     for folder in folders:
-        pythonpath = folder.joinpath(PYTHONPATH)
+        pythonpath = folder.joinpath(PYTHON)
         activatepath = folder.joinpath(BINARY_PATH, "activate")
 
         if pythonpath.is_file():
-            yield Venv(pythonpath, f"'{ACTIVATE_PREFIX}{activatepath}'")
+            yield Venv(pythonpath, f"'{VENV_ACTIVATE_PREFIX}{activatepath}'")
