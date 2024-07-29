@@ -293,19 +293,30 @@ class Canceled(Exception):
 
 
 class RequestManager:
+    """RequestManager manage method mapped to request_id."""
+
     def __init__(self):
-        self.lock = threading.RLock()
-        self.request_map = {}
-        self.canceled_request = set()
+        self.methods_map = {}
+        self.canceled_requests = set()
         self.request_count = 0
 
-    def add_request(self, method: str):
-        with self.lock:
-            self.request_count += 1
-            self.request_map[self.request_count] = method
+        self._lock = threading.Lock()
 
-    def get_request(self, request_id: int) -> str:
+    def add_method(self, method: str) -> int:
+        """add request method to request_map
+
+        Return:
+            request_count: int
         """
+        with self._lock:
+            self.request_count += 1
+            self.methods_map[self.request_count] = method
+
+            return self.request_count
+
+    def get_method(self, request_id: int) -> str:
+        """get method paired with request_id
+
         Return:
             method: str
         Raises:
@@ -313,28 +324,39 @@ class RequestManager:
             Canceled if request canceled
         """
 
-        with self.lock:
-            if request_id in self.canceled_request:
-                # Clean request map
-                self.canceled_request.remove(request_id)
-                del self.request_map[request_id]
-
+        with self._lock:
+            if request_id in self.canceled_requests:
+                self.canceled_requests.remove(request_id)
                 raise Canceled(request_id)
 
-            return self.request_map.pop(request_id)
+            # pop() is simpler than get() and del
+            return self.methods_map.pop(request_id)
 
     def get_request_id(self, method: str) -> Optional[int]:
-        """return None if not found"""
-        with self.lock:
-            for req_id, meth in self.request_map.items():
+        """get request_id paired with method
+
+        Return:
+            request_id: Optional[int]
+        """
+
+        with self._lock:
+            for req_id, meth in self.methods_map.items():
                 if meth == method:
                     return req_id
 
             return None
 
-    def cancel_requests(self, *request_id: int):
-        with self.lock:
-            self.canceled_request.update(request_id)
+    def mark_canceled(self, request_id: int):
+        """mark request as canceled"""
+
+        with self._lock:
+            try:
+                del self.methods_map[request_id]
+            except KeyError:
+                pass
+            else:
+                # mark canceled if 'request_id' in 'request_map'
+                self.canceled_requests.add(request_id)
 
 
 class Client:
@@ -442,9 +464,9 @@ class Client:
 
     def handle_response(self, message: RPCMessage):
         try:
-            method = self.request_manager.get_request(message["id"])
-        except (Canceled, KeyError):
-            # handle exception here
+            method = self.request_manager.get_method(message["id"])
+        except Canceled:
+            # ignore canceled response
             return
 
         try:
@@ -453,14 +475,12 @@ class Client:
             LOGGER.exception(err, exc_info=True)
 
     def send_request(self, method: str, params: dict):
-        prev_request = self.request_manager.get_request_id(method)
-        if prev_request is not None:
-            # cancel previous request
-            self.request_manager.cancel_requests(prev_request)
+        # cancel previous request with same method
+        if prev_request := self.request_manager.get_request_id(method):
+            self.request_manager.mark_canceled(prev_request)
             self.send_notification("$/cancelRequest", {"id": prev_request})
 
-        self.request_manager.add_request(method)
-        req_id = self.request_manager.request_count
+        req_id = self.request_manager.add_method(method)
         self.send_message(RPCMessage.request(req_id, method, params))
 
     def send_notification(self, method: str, params: dict):
