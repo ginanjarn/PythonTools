@@ -382,34 +382,32 @@ class Client:
         self.transport.write(content)
 
     def _listen(self):
-        def listen_func():
+        def listen_message() -> RPCMessage:
             if not self.transport:
-                return
+                raise EOFError("transport is closed")
 
             content = self.transport.read()
-
             try:
                 message = RPCMessage.load(content)
             except json.JSONDecodeError as err:
-                LOGGER.exception("content: %s", content)
+                LOGGER.exception("content: '%s'", content)
                 raise err
 
-            try:
-                self.handle_message(message)
-            except Exception as err:
-                LOGGER.exception("message: %s", message)
-                raise err
+            return message
 
         while True:
             try:
-                listen_func()
-            except EOFError:
-                break
+                message = listen_message()
 
             except Exception as err:
-                LOGGER.exception(err)
+                LOGGER.exception(err, exc_info=True)
                 self.terminate_server()
                 break
+
+            try:
+                self.handle_message(message)
+            except Exception:
+                LOGGER.exception("error handle message: %s", message, exc_info=True)
 
     def listen(self):
         thread = threading.Thread(target=self._listen, daemon=True)
