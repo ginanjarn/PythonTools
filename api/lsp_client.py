@@ -413,7 +413,7 @@ class Client:
         thread = threading.Thread(target=self._listen, daemon=True)
         thread.start()
 
-    def server_running(self):
+    def is_server_running(self):
         return bool(self.transport) and self.transport.is_running()
 
     def run_server(self, options: PopenOptions = None):

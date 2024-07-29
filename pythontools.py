@@ -533,7 +533,7 @@ class PyserverHandler(lsp_client.BaseHandler):
             return {}
 
     def is_ready(self) -> bool:
-        return self.client.server_running() and self.session.is_begin()
+        return self.client.is_server_running() and self.session.is_begin()
 
     run_server_lock = threading.Lock()
 
@@ -543,7 +543,7 @@ class PyserverHandler(lsp_client.BaseHandler):
             return
 
         with self.run_server_lock:
-            if not self.client.server_running():
+            if not self.client.is_server_running():
                 sublime.status_message("running pyserver...")
                 # sometimes the server stop working
                 # we must reset the state before run server
