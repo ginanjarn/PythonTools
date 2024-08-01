@@ -399,6 +399,10 @@ class Client:
             try:
                 message = listen_message()
 
+            except EOFError:
+                # if stdout closed
+                break
+
             except Exception as err:
                 LOGGER.exception(err, exc_info=True)
                 self.terminate_server()
