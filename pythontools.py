@@ -278,19 +278,9 @@ class BufferedDocument:
     def apply_text_changes(self, changes: List[dict]):
         self.view.run_command("pythontools_apply_text_changes", {"changes": changes})
 
-    def get_diagnostic_region(self, diagnostic: dict):
-        start = diagnostic["range"]["start"]
-        end = diagnostic["range"]["end"]
-
-        start_point = self.view.text_point(start["line"], start["character"])
-        end_point = self.view.text_point(end["line"], end["character"])
-        return sublime.Region(start_point, end_point)
-
-    def highlight_text(self, diagnostics: List[dict]):
+    def highlight_text(self, regions: List[sublime.Region]):
         highligter = TextHighlighter(self.view)
         highligter.clear()
-
-        regions = [self.get_diagnostic_region(d) for d in diagnostics]
         highligter.apply(regions)
 
 
@@ -798,6 +788,17 @@ class PyserverHandler(lsp_client.BaseHandler):
         self.diagnostics_panel.set_content(diagnostic_text)
         self.diagnostics_panel.show()
 
+    def _get_diagnostic_region(
+        self, view: sublime.View, diagnostic: dict
+    ) -> sublime.Region:
+
+        start = diagnostic["range"]["start"]
+        end = diagnostic["range"]["end"]
+
+        start_point = view.text_point(start["line"], start["character"])
+        end_point = view.text_point(end["line"], end["character"])
+        return sublime.Region(start_point, end_point)
+
     def handle_textdocument_publishdiagnostics(self, params: dict):
         file_name = lsp_client.uri_to_path(params["uri"])
         diagnostics = params["diagnostics"]
@@ -808,7 +809,11 @@ class PyserverHandler(lsp_client.BaseHandler):
         # Ensure diagnostics unchanged while buid message and applying syntax highlight
         with self.workspace.diagnostic_lock:
             for document in self.workspace.get_documents(file_name):
-                document.highlight_text(diagnostics)
+                regions = [
+                    self._get_diagnostic_region(document.view, diagnostic)
+                    for diagnostic in diagnostics
+                ]
+                document.highlight_text(regions)
 
     @session.must_begin
     def textdocument_formatting(self, view):
