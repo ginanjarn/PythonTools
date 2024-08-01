@@ -241,32 +241,13 @@ class BufferedDocument:
             "marked_popup", {"location": point, "text": text, "markup": "markdown"}
         )
 
-    def show_completion(self, items: List[dict]):
-
-        def build_completion(completion: dict):
-            text = completion["label"]
-            try:
-                insert_text = completion["textEdit"]["newText"]
-            except KeyError:
-                insert_text = text
-
-            signature = completion["detail"]
-            kind = COMPLETION_KIND_MAP[completion["kind"]]
-
-            return sublime.CompletionItem.snippet_completion(
-                trigger=text,
-                snippet=insert_text,
-                annotation=signature,
-                kind=kind,
-            )
-
-        temp = [build_completion(c) for c in items]
+    def show_completion(self, items: List[sublime.CompletionItem]):
         try:
-            self._cached_completion.put_nowait(temp)
+            self._cached_completion.put_nowait(items)
         except queue.Full:
             # get current completion
             _ = self._cached_completion.get()
-            self._cached_completion.put(temp)
+            self._cached_completion.put(items)
 
         self._trigger_completion()
 
@@ -731,12 +712,29 @@ class PyserverHandler(lsp_client.BaseHandler):
             )
             self.action_target.completion = document
 
+    def _build_completion(self, completion_item: dict) -> sublime.CompletionItem:
+        text = completion_item["label"]
+        try:
+            insert_text = completion_item["textEdit"]["newText"]
+        except KeyError:
+            insert_text = text
+
+        signature = completion_item["detail"]
+        kind = COMPLETION_KIND_MAP[completion_item["kind"]]
+
+        return sublime.CompletionItem.snippet_completion(
+            trigger=text,
+            snippet=insert_text,
+            annotation=signature,
+            kind=kind,
+        )
+
     def handle_textdocument_completion(self, params: dict):
         if err := params.get("error"):
             print(err["message"])
 
         elif result := params.get("result"):
-            items = result["items"]
+            items = [self._build_completion(item) for item in result["items"]]
             self.action_target.completion.show_completion(items)
 
     @session.must_begin
