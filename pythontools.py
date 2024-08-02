@@ -4,12 +4,12 @@ import logging
 import queue
 import threading
 import time
-from collections import defaultdict
-from dataclasses import dataclass
+from collections import defaultdict, namedtuple
+from dataclasses import dataclass, asdict
 from functools import wraps
 from io import StringIO
 from pathlib import Path
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Iterator
 
 
 import sublime
@@ -66,6 +66,17 @@ COMPLETION_KIND_MAP = defaultdict(
     },
 )
 
+RowColIndex = namedtuple("RowColIndex", ["row", "column"])
+
+
+@dataclass
+class RawTextChange:
+    """RawTextChange used to intermediate 'TextCommand' argument"""
+
+    start: RowColIndex
+    end: RowColIndex
+    text: str
+
 
 @dataclass
 class TextChange:
@@ -82,7 +93,7 @@ MULTIDOCUMENT_CHANGE_LOCK = threading.Lock()
 
 class PythontoolsApplyTextChangesCommand(sublime_plugin.TextCommand):
     def run(self, edit: sublime.Edit, changes: List[dict]):
-        text_changes = [self.to_text_change(c) for c in changes]
+        text_changes = [c for c in self.to_text_change(changes)]
         current_sel = list(self.view.sel())
 
         with MULTIDOCUMENT_CHANGE_LOCK:
@@ -90,18 +101,15 @@ class PythontoolsApplyTextChangesCommand(sublime_plugin.TextCommand):
             self.relocate_selection(current_sel, text_changes)
             self.view.show(self.view.sel(), show_surrounds=False)
 
-    def to_text_change(self, change: dict) -> TextChange:
-        start = change["range"]["start"]
-        end = change["range"]["end"]
+    def to_text_change(self, changes: List[dict]) -> Iterator[TextChange]:
+        for change in (RawTextChange(**c) for c in changes):
+            start_point = self.view.text_point(*change.start)
+            end_point = self.view.text_point(*change.end)
 
-        start_point = self.view.text_point(start["line"], start["character"])
-        end_point = self.view.text_point(end["line"], end["character"])
+            region = sublime.Region(start_point, end_point)
+            cursor_move = len(change.text) - region.size()
 
-        region = sublime.Region(start_point, end_point)
-        new_text = change["newText"]
-        cursor_move = len(new_text) - region.size()
-
-        return TextChange(region, new_text, cursor_move)
+            yield TextChange(region, change.text, cursor_move)
 
     def apply(self, edit: sublime.Edit, text_changes: List[TextChange]):
         cursor_move = 0
@@ -170,15 +178,15 @@ class UnbufferedDocument:
         with MULTIDOCUMENT_CHANGE_LOCK:
             self._apply_text_changes(changes)
 
-    def _apply_text_changes(self, changes: List[dict]):
+    def _apply_text_changes(self, changes: List[RawTextChange]):
         for change in changes:
             try:
-                start = change["range"]["start"]
-                end = change["range"]["end"]
+                start = change.start
+                end = change.end
                 new_text = change["newText"]
 
-                start_line, start_character = start["line"], start["character"]
-                end_line, end_character = end["line"], end["character"]
+                start_line, start_character = start[0], start[1]
+                end_line, end_character = end[0], end[1]
 
             except KeyError as err:
                 raise Exception(f"invalid params {err}") from err
@@ -275,8 +283,13 @@ class BufferedDocument:
     def hide_completion(self):
         self.view.run_command("hide_auto_complete")
 
-    def apply_text_changes(self, changes: List[dict]):
-        self.view.run_command("pythontools_apply_text_changes", {"changes": changes})
+    def apply_text_changes(self, changes: List[RawTextChange]):
+        self.view.run_command(
+            "pythontools_apply_text_changes",
+            {
+                "changes": [asdict(c) for c in changes],
+            },
+        )
 
     def highlight_text(self, regions: List[sublime.Region]):
         highligter = TextHighlighter(self.view)
@@ -815,6 +828,15 @@ class PyserverHandler(lsp_client.BaseHandler):
                 ]
                 document.highlight_text(regions)
 
+    def _get_text_change(self, change: dict) -> RawTextChange:
+        start = change["range"]["start"]
+        end = change["range"]["end"]
+        text = change["newText"]
+
+        return RawTextChange(
+            (start["line"], start["character"]), (end["line"], end["character"]), text
+        )
+
     @session.must_begin
     def textdocument_formatting(self, view):
         if document := self.workspace.get_document(view):
@@ -831,7 +853,8 @@ class PyserverHandler(lsp_client.BaseHandler):
         if error := params.get("error"):
             print(error["message"])
         elif result := params.get("result"):
-            self.action_target.formatting.apply_text_changes(result)
+            changes = [self._get_text_change(c) for c in result]
+            self.action_target.formatting.apply_text_changes(changes)
 
     def _create_document(self, file_name: str):
         Path(file_name).touch()
@@ -871,7 +894,8 @@ class PyserverHandler(lsp_client.BaseHandler):
 
             # TextEdit Changes
             file_name = lsp_client.uri_to_path(document_changes["textDocument"]["uri"])
-            changes = document_changes["edits"]
+            edits = document_changes["edits"]
+            changes = [self._get_text_change(c) for c in edits]
 
             document = self.workspace.get_document_by_name(
                 file_name, UnbufferedDocument(file_name)
