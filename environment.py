@@ -28,10 +28,10 @@ def get_workspace_path(view: sublime.View) -> str:
 
 class PythontoolsSetEnvironmentCommand(sublime_plugin.WindowCommand):
     def run(self, scan=False):
-        thread = threading.Thread(target=self._run, args=(scan,))
+        thread = threading.Thread(target=self.run_task, args=(scan,))
         thread.start()
 
-    def _run(self, scan=False):
+    def run_task(self, scan=False):
         managers = list(self.load_cache())
         if not managers or scan:
             managers = list(self.scan_managers())
