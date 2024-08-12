@@ -508,13 +508,13 @@ class PyserverHandler(lsp_client.BaseHandler):
         self.action_target = ActionTarget()
         self.session.done()
 
-    def get_settings(self) -> dict:
+    def get_settings_envs(self) -> Optional[dict]:
         with Settings() as settings:
-            if settings := settings.to_dict():
-                return settings
+            if envs := settings.get("envs"):
+                return envs
 
             sublime.active_window().run_command("pythontools_set_environment")
-            return {}
+            return None
 
     def is_ready(self) -> bool:
         return self.client.is_server_running() and self.session.is_begin()
@@ -533,9 +533,9 @@ class PyserverHandler(lsp_client.BaseHandler):
                 # we must reset the state before run server
                 self._reset_state()
 
-                settings = self.get_settings()
                 option = lsp_client.PopenOptions(
-                    env=settings.get("envs"), cwd=self.server_path
+                    env=self.get_settings_envs(),
+                    cwd=self.server_path,
                 )
                 self.client.run_server(option)
                 self.client.listen()
