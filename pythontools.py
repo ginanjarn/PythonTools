@@ -855,52 +855,58 @@ class PyserverHandler(lsp_client.BaseHandler):
             changes = [self._get_text_change(c) for c in result]
             self.action_target.formatting.apply_text_changes(changes)
 
-    def _create_document(self, file_name: str):
+    def _create_document(self, document_changes: dict):
+        file_name = lsp_client.uri_to_path(document_changes["uri"])
         Path(file_name).touch()
 
-    def _rename_document(self, old_name: str, new_name: str):
+    def _rename_document(self, document_changes: dict):
+        old_name = lsp_client.uri_to_path(document_changes["oldUri"])
+        new_name = lsp_client.uri_to_path(document_changes["newUri"])
+
         Path(old_name).rename(new_name)
         if view := sublime.active_window().find_open_file(old_name):
             # retarget buffer to new path
             view.retarget(new_name)
 
-    def _delete_document(self, file_name: str):
+    def _delete_document(self, document_changes: dict):
+        file_name = lsp_client.uri_to_path(document_changes["uri"])
+
         Path(file_name).unlink()
         if view := sublime.active_window().find_open_file(file_name):
             # close opened buffer
             view.close()
+
+    def _apply_resource_changes(self, document_changes: dict):
+        func = {
+            "create": self._create_document,
+            "rename": self._rename_document,
+            "delete": self._delete_document,
+        }
+        kind = document_changes.get("kind")
+        func[kind](document_changes)
+
+    def _apply_textedit_changes(self, document_changes: dict):
+        file_name = lsp_client.uri_to_path(document_changes["textDocument"]["uri"])
+        edits = document_changes["edits"]
+        changes = [self._get_text_change(c) for c in edits]
+
+        document = self.workspace.get_document_by_name(
+            file_name, UnbufferedDocument(file_name)
+        )
+        document.apply_text_changes(changes)
+        document.save()
 
     def _apply_edit(self, edit: dict):
         for document_changes in edit["documentChanges"]:
             # documentChanges: TextEdit|CreateFile|RenameFile|DeleteFile
 
             # File Resource Changes
-            if kind := document_changes.get("kind"):
-                if kind == "create":
-                    file_name = lsp_client.uri_to_path(document_changes["uri"])
-                    self._create_document(file_name)
-
-                elif kind == "rename":
-                    old_name = lsp_client.uri_to_path(document_changes["oldUri"])
-                    new_name = lsp_client.uri_to_path(document_changes["newUri"])
-                    self._rename_document(old_name, new_name)
-
-                elif kind == "delete":
-                    file_name = lsp_client.uri_to_path(document_changes["uri"])
-                    self._delete_document(file_name)
-
+            if document_changes.get("kind"):
+                self._apply_resource_changes(document_changes)
                 return
 
             # TextEdit Changes
-            file_name = lsp_client.uri_to_path(document_changes["textDocument"]["uri"])
-            edits = document_changes["edits"]
-            changes = [self._get_text_change(c) for c in edits]
-
-            document = self.workspace.get_document_by_name(
-                file_name, UnbufferedDocument(file_name)
-            )
-            document.apply_text_changes(changes)
-            document.save()
+            self._apply_textedit_changes(document_changes)
 
     def handle_workspace_applyedit(self, params: dict) -> dict:
         try:
