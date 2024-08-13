@@ -457,14 +457,15 @@ class Workspace:
     def remove_invalid_diagnostic(self):
         """remove invalid diagnostic"""
 
-        removed_file = set()
-        document_files = {doc.file_name for _, doc in self.documents.items()}
-        for file_name, _ in self.diagnostics.items():
-            if not file_name in document_files:
-                removed_file.add(file_name)
+        document_names = {doc.file_name for _, doc in self.documents.items()}
+        diagnostic_keys = set(self.diagnostics.keys())
 
-        for file_name in removed_file:
-            del self.diagnostics[file_name]
+        invalid_keys = diagnostic_keys.difference(document_names)
+        self.diagnostics = {
+            file_name: diagnostic
+            for file_name, diagnostic in self.diagnostics.items()
+            if file_name not in invalid_keys
+        }
 
 
 @dataclass
