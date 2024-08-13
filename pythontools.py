@@ -437,7 +437,8 @@ class Workspace:
 
     @lock(diagnostic_lock)
     def get_diagnostics(self) -> Dict[PathStr, Dict[str, Any]]:
-        return self.diagnostics
+        # return copy to prevent 'RuntimeError' during iteration
+        return dict(self.diagnostics)
 
     @lock(diagnostic_lock)
     def set_diagnostic(self, file_name: PathStr, diagnostic: dict):
@@ -794,9 +795,8 @@ class PyserverHandler(lsp_client.BaseHandler):
         return message_buffer.getvalue()
 
     def _show_diagnostic_report(self):
-        with self.workspace.diagnostic_lock:
-            diagnostic_map = self.workspace.get_diagnostics()
-            diagnostic_text = self._build_diagnostic_message(diagnostic_map)
+        diagnostic_map = self.workspace.get_diagnostics()
+        diagnostic_text = self._build_diagnostic_message(diagnostic_map)
 
         self.diagnostics_panel.set_content(diagnostic_text)
         self.diagnostics_panel.show()
@@ -819,14 +819,12 @@ class PyserverHandler(lsp_client.BaseHandler):
         self.workspace.set_diagnostic(file_name, diagnostics)
         self._show_diagnostic_report()
 
-        # Ensure diagnostics unchanged while buid message and applying syntax highlight
-        with self.workspace.diagnostic_lock:
-            for document in self.workspace.get_documents(file_name):
-                regions = [
-                    self._get_diagnostic_region(document.view, diagnostic)
-                    for diagnostic in diagnostics
-                ]
-                document.highlight_text(regions)
+        for document in self.workspace.get_documents(file_name):
+            regions = [
+                self._get_diagnostic_region(document.view, diagnostic)
+                for diagnostic in diagnostics
+            ]
+            document.highlight_text(regions)
 
     def _get_text_change(self, change: dict) -> RawTextChange:
         start = change["range"]["start"]
