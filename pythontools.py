@@ -790,8 +790,8 @@ class PyserverHandler(lsp_client.BaseHandler):
 
         message_buffer = StringIO()
         for file_name, diagnostics in diagnostics_map.items():
-            for diagnostic in diagnostics:
-                message_buffer.write(build_line(file_name, diagnostic))
+            message = "".join([build_line(file_name, d) for d in diagnostics])
+            message_buffer.write(message)
 
         return message_buffer.getvalue()
 
