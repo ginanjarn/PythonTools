@@ -1145,13 +1145,18 @@ class EventListener(sublime_plugin.EventListener):
         HANDLER.textdocument_completion(view, row, col)
         view.run_command("hide_auto_complete")
 
-        self._show_signature_help(view, row, col, point)
+        sublime.set_timeout_async(
+            self._trigger_signaturehelp(view, point, row, col), 0.5
+        )
         return None
 
-    def _show_signature_help(self, view, row, col, point):
-        # hide active popup
+    def _trigger_signaturehelp(
+        self, view: sublime.View, point: int, row: int, col: int
+    ):
+        # Some times server response signaturehelp after cursor moved.
         view.hide_popup()
-        # only request signature on function arguments
+
+        # Only request signature on function arguments
         if not view.match_selector(point, "meta.function-call.arguments"):
             return
 
