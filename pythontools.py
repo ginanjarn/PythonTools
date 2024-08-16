@@ -158,12 +158,8 @@ class PyserverHandler(lsp_client.BaseHandler):
 
     session = Session()
 
-    def __init__(self):
-        # pyserver path defined here beacause it located relativeto this file
-        self.server_path = Path(__file__).parent.joinpath("pyserver")
-        # client initializer
-        server_command = ["python", "-m", "pyserver", "-i"]
-        self.transport = lsp_client.StandardIO(server_command)
+    def __init__(self, transport: lsp_client.Transport):
+        self.transport = transport
         self.client = lsp_client.Client(self.transport, self)
 
         # workspace status
@@ -210,11 +206,7 @@ class PyserverHandler(lsp_client.BaseHandler):
                 # we must reset the state before run server
                 self._reset_state()
 
-                option = lsp_client.PopenOptions(
-                    env=self.get_settings_envs(),
-                    cwd=self.server_path,
-                )
-                self.client.run_server(option)
+                self.client.run_server(self.get_settings_envs())
                 self.client.listen()
 
     def terminate(self):
@@ -719,12 +711,24 @@ class PyserverHandler(lsp_client.BaseHandler):
 HANDLER: PyserverHandler = None
 
 
-def plugin_loaded():
+def setup_handler():
+    """"""
     global HANDLER
-    HANDLER = PyserverHandler()
+
+    # pyserver path defined here because it located relativeto this file
+    server_path = Path(__file__).parent.joinpath("pyserver")
+    command = ["python", "-m", "pyserver", "-i"]
+    transport = lsp_client.StandardIO(command, server_path)
+    HANDLER = PyserverHandler(transport)
+
+
+def plugin_loaded():
+    """plugin entry point"""
+    setup_handler()
 
 
 def plugin_unloaded():
+    """executed before plugin unloaded"""
     if HANDLER:
         HANDLER.terminate()
 

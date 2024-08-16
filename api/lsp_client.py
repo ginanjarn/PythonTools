@@ -9,13 +9,12 @@ import subprocess
 import shlex
 import weakref
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 from urllib.request import url2pathname
-from typing import Optional, Union
+from typing import Optional, Union, List
 
 from . import errors
 
@@ -141,7 +140,7 @@ class Transport(ABC):
         """check server is running"""
 
     @abstractmethod
-    def run(self) -> None:
+    def run(self, env: Optional[dict] = None) -> None:
         """run server"""
 
     @abstractmethod
@@ -157,17 +156,12 @@ class Transport(ABC):
         """read data from server"""
 
 
-@dataclass
-class PopenOptions:
-    env: dict = None
-    cwd: str = None
-
-
 class StandardIO(Transport):
     """StandardIO Transport implementation"""
 
-    def __init__(self, command: list):
+    def __init__(self, command: List[str], cwd: Optional[Path] = None):
         self.command = command
+        self.cwd = cwd
 
         self._process: subprocess.Popen = None
         self._run_event = threading.Event()
@@ -178,8 +172,7 @@ class StandardIO(Transport):
     def is_running(self):
         return bool(self._process) and (self._process.poll() is None)
 
-    def run(self, options: PopenOptions = None):
-        options = options or PopenOptions()
+    def run(self, env: Optional[dict] = None):
         print("execute '%s'" % shlex.join(self.command))
 
         self._process = subprocess.Popen(
@@ -187,8 +180,8 @@ class StandardIO(Transport):
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            env=options.env,
-            cwd=options.cwd,
+            env=env or None,
+            cwd=self.cwd or None,
             shell=True,
             bufsize=0,
             startupinfo=STARTUPINFO,
@@ -420,8 +413,8 @@ class Client:
     def is_server_running(self):
         return bool(self.transport) and self.transport.is_running()
 
-    def run_server(self, options: PopenOptions = None):
-        self.transport.run(options)
+    def run_server(self, env: Optional[dict] = None):
+        self.transport.run(env)
 
     def terminate_server(self):
         if self.transport:
