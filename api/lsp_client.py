@@ -21,12 +21,8 @@ from . import errors
 URI = str
 _PathLikeStr = str
 
-LOGGER = logging.getLogger(__name__)
-# LOGGER.setLevel(logging.DEBUG)
-fmt = logging.Formatter("%(levelname)s %(filename)s:%(lineno)d  %(message)s")
-sh = logging.StreamHandler()
-sh.setFormatter(fmt)
-LOGGER.addHandler(sh)
+LOGGING_CHANNEL = "pythontools"
+LOGGER = logging.getLogger(LOGGING_CHANNEL)
 
 
 def path_to_uri(path: _PathLikeStr) -> URI:

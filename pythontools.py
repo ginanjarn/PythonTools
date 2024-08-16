@@ -23,17 +23,22 @@ from .workspace import (
     Workspace,
 )
 
-PACKAGE_NAME = str(Path(__file__).parent)
-
-LOGGER = logging.getLogger(PACKAGE_NAME)
-# LOGGER.setLevel(logging.DEBUG)
-fmt = logging.Formatter("%(levelname)s %(filename)s:%(lineno)d  %(message)s")
-sh = logging.StreamHandler()
-sh.setFormatter(fmt)
-LOGGER.addHandler(sh)
-
-# support type
 PathStr = str
+
+PACKAGE_NAME = str(Path(__file__).parent)
+LOGGING_CHANNEL = "pythontools"
+LOGGER = logging.getLogger(LOGGING_CHANNEL)
+
+
+def setup_logger(level: int):
+    """"""
+    LOGGER.setLevel(level)
+    fmt = logging.Formatter("%(levelname)s %(filename)s:%(lineno)d  %(message)s")
+
+    sh = logging.StreamHandler()
+    sh.setFormatter(fmt)
+    LOGGER.addHandler(sh)
+
 
 # custom kind
 KIND_PATH = (sublime.KIND_ID_VARIABLE, "p", "")
@@ -724,6 +729,7 @@ def setup_handler():
 
 def plugin_loaded():
     """plugin entry point"""
+    setup_logger(logging.ERROR)
     setup_handler()
 
 

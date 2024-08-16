@@ -15,11 +15,12 @@ import sublime_plugin
 
 from .api import lsp_client
 
-PACKAGE_NAME = str(Path(__file__).parent)
-
-LOGGER = logging.getLogger(PACKAGE_NAME)
 PathStr = str
 RowColIndex = namedtuple("RowColIndex", ["row", "column"])
+
+PACKAGE_NAME = str(Path(__file__).parent)
+LOGGING_CHANNEL = "pythontools"
+LOGGER = logging.getLogger(LOGGING_CHANNEL)
 
 
 @dataclass
