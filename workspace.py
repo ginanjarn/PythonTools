@@ -178,12 +178,15 @@ class BufferedDocument:
 
     def __init__(self, view: sublime.View):
         self.view = view
-        self.window = view.window()
         self.file_name = self.view.file_name()
         self.language_id = "python"
 
         self.view.settings().update(self.VIEW_SETTINGS)
         self._cached_completion = queue.Queue(maxsize=1)
+
+    @property
+    def window(self) -> sublime.Window:
+        return self.view.window()
 
     @property
     def version(self) -> int:
