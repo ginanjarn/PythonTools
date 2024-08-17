@@ -186,7 +186,8 @@ class PyserverHandler(lsp_client.BaseHandler):
         self.action_target = ActionTarget()
         self.session.done()
 
-    def get_settings_envs(self) -> Optional[dict]:
+    @staticmethod
+    def get_settings_envs() -> Optional[dict]:
         with Settings() as settings:
             if envs := settings.get("envs"):
                 return envs
@@ -389,7 +390,8 @@ class PyserverHandler(lsp_client.BaseHandler):
             )
             self.action_target.completion = document
 
-    def _build_completion(self, completion_item: dict) -> sublime.CompletionItem:
+    @staticmethod
+    def _build_completion(completion_item: dict) -> sublime.CompletionItem:
         text = completion_item["label"]
         try:
             insert_text = completion_item["textEdit"]["newText"]
@@ -446,7 +448,8 @@ class PyserverHandler(lsp_client.BaseHandler):
             row, col = view.rowcol(view.sel()[0].a)
             self.action_target.signature_help.show_popup(message, row, col)
 
-    def _build_diagnostic_message(self, diagnostics_map: Dict[PathStr, Any]) -> str:
+    @staticmethod
+    def _build_diagnostic_message(diagnostics_map: Dict[PathStr, Any]) -> str:
 
         def build_line(file_name, diagnostic):
             short_name = Path(file_name).name
@@ -474,9 +477,8 @@ class PyserverHandler(lsp_client.BaseHandler):
         self.diagnostics_panel.set_content(diagnostic_text)
         self.diagnostics_panel.show()
 
-    def _get_diagnostic_region(
-        self, view: sublime.View, diagnostic: dict
-    ) -> sublime.Region:
+    @staticmethod
+    def _get_diagnostic_region(view: sublime.View, diagnostic: dict) -> sublime.Region:
 
         start = diagnostic["range"]["start"]
         end = diagnostic["range"]["end"]
@@ -499,7 +501,8 @@ class PyserverHandler(lsp_client.BaseHandler):
             ]
             document.highlight_text(regions)
 
-    def _get_text_change(self, change: dict) -> RawTextChange:
+    @staticmethod
+    def _get_text_change(change: dict) -> TextChange:
         start = change["range"]["start"]
         end = change["range"]["end"]
         text = change["newText"]
@@ -527,11 +530,13 @@ class PyserverHandler(lsp_client.BaseHandler):
             changes = [self._get_text_change(c) for c in result]
             self.action_target.formatting.apply_text_changes(changes)
 
-    def _create_document(self, document_changes: dict):
+    @staticmethod
+    def _create_document(document_changes: dict):
         file_name = lsp_client.uri_to_path(document_changes["uri"])
         Path(file_name).touch()
 
-    def _rename_document(self, document_changes: dict):
+    @staticmethod
+    def _rename_document(document_changes: dict):
         old_name = lsp_client.uri_to_path(document_changes["oldUri"])
         new_name = lsp_client.uri_to_path(document_changes["newUri"])
 
@@ -540,7 +545,8 @@ class PyserverHandler(lsp_client.BaseHandler):
             # retarget buffer to new path
             view.retarget(new_name)
 
-    def _delete_document(self, document_changes: dict):
+    @staticmethod
+    def _delete_document(document_changes: dict):
         file_name = lsp_client.uri_to_path(document_changes["uri"])
 
         Path(file_name).unlink()
