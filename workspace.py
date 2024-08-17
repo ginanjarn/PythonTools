@@ -8,7 +8,7 @@ from collections import namedtuple
 from dataclasses import dataclass, asdict
 from functools import wraps
 from pathlib import Path
-from typing import Dict, List, Iterator, Any, Optional
+from typing import Dict, List, Any, Optional
 
 import sublime
 import sublime_plugin
@@ -24,8 +24,8 @@ LOGGER = logging.getLogger(LOGGING_CHANNEL)
 
 
 @dataclass
-class RawTextChange:
-    """RawTextChange used to intermediate 'TextCommand' argument"""
+class TextChange:
+    """TextChange used to intermediate 'TextCommand' argument"""
 
     start: RowColIndex
     end: RowColIndex
@@ -33,7 +33,9 @@ class RawTextChange:
 
 
 @dataclass
-class TextChange:
+class _BufferedTextChange:
+    """"""
+
     region: sublime.Region
     new_text: str
     cursor_move: int = 0
@@ -46,26 +48,30 @@ MULTIDOCUMENT_CHANGE_LOCK = threading.Lock()
 
 
 class PythontoolsApplyTextChangesCommand(sublime_plugin.TextCommand):
+    """changes item must serialized from 'TextChange'"""
+
     def run(self, edit: sublime.Edit, changes: List[dict]):
-        text_changes = [c for c in self.to_text_change(changes)]
-        current_sel = list(self.view.sel())
+        text_changes = [self.to_text_change(self.view, c) for c in changes]
+        active_selection = list(self.view.sel())
+        visible_region = self.view.visible_region()
 
         with MULTIDOCUMENT_CHANGE_LOCK:
             self.apply(edit, text_changes)
-            self.relocate_selection(current_sel, text_changes)
-            self.view.show(self.view.sel(), show_surrounds=False)
+            self.relocate_selection(active_selection, text_changes)
+            self.view.show(visible_region, show_surrounds=False)
 
-    def to_text_change(self, changes: List[dict]) -> Iterator[TextChange]:
-        for change in (RawTextChange(**c) for c in changes):
-            start_point = self.view.text_point(*change.start)
-            end_point = self.view.text_point(*change.end)
+    @staticmethod
+    def to_text_change(view: sublime.View, change: dict) -> _BufferedTextChange:
+        change = TextChange(**change)
+        start_point = view.text_point(*change.start)
+        end_point = view.text_point(*change.end)
 
-            region = sublime.Region(start_point, end_point)
-            cursor_move = len(change.text) - region.size()
+        region = sublime.Region(start_point, end_point)
+        cursor_move = len(change.text) - region.size()
 
-            yield TextChange(region, change.text, cursor_move)
+        return _BufferedTextChange(region, change.text, cursor_move)
 
-    def apply(self, edit: sublime.Edit, text_changes: List[TextChange]):
+    def apply(self, edit: sublime.Edit, text_changes: List[_BufferedTextChange]):
         cursor_move = 0
         for change in text_changes:
             replaced_region = change.moved_region(cursor_move)
@@ -74,7 +80,7 @@ class PythontoolsApplyTextChangesCommand(sublime_plugin.TextCommand):
             cursor_move += change.cursor_move
 
     def relocate_selection(
-        self, selections: List[sublime.Region], changes: List[TextChange]
+        self, selections: List[sublime.Region], changes: List[_BufferedTextChange]
     ):
         """relocate current selection following text changes"""
         moved_selections = []
@@ -132,7 +138,7 @@ class UnbufferedDocument:
         with MULTIDOCUMENT_CHANGE_LOCK:
             self._apply_text_changes(changes)
 
-    def _apply_text_changes(self, changes: List[RawTextChange]):
+    def _apply_text_changes(self, changes: List[TextChange]):
         for change in changes:
             try:
                 start = change.start
@@ -237,7 +243,7 @@ class BufferedDocument:
     def hide_completion(self):
         self.view.run_command("hide_auto_complete")
 
-    def apply_text_changes(self, changes: List[RawTextChange]):
+    def apply_text_changes(self, changes: List[TextChange]):
         self.view.run_command(
             "pythontools_apply_text_changes",
             {

@@ -17,7 +17,7 @@ from .api import lsp_client
 from .api.sublime_settings import Settings
 from .workspace import (
     BufferedDocument,
-    RawTextChange,
+    TextChange,
     TextHighlighter,
     UnbufferedDocument,
     Workspace,
@@ -507,7 +507,7 @@ class PyserverHandler(lsp_client.BaseHandler):
         end = change["range"]["end"]
         text = change["newText"]
 
-        return RawTextChange(
+        return TextChange(
             (start["line"], start["character"]), (end["line"], end["character"]), text
         )
 
