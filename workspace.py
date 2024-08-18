@@ -362,6 +362,15 @@ class Workspace:
         }
 
 
+def open_document(file_name: PathStr, preview: bool = False):
+    """open document"""
+    flags = sublime.ENCODED_POSITION
+    if preview:
+        flags |= sublime.TRANSIENT
+
+    sublime.active_window().open_file(file_name, flags=flags)
+
+
 def create_document(file_name: PathStr, text: str = ""):
     """create document"""
     path = Path(file_name)

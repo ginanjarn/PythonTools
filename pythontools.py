@@ -610,14 +610,14 @@ class PyserverHandler(lsp_client.BaseHandler):
 
     def _open_locations(self, locations: List[dict]):
         current_view = self.action_target.definition.view
-        current_sel = tuple(current_view.sel())
-        visible_region = current_view.visible_region()
+        current_selections = tuple(current_view.sel())
+        current_visible_region = current_view.visible_region()
 
-        def restore_selection():
-            sublime.active_window().focus_view(current_view)
-            current_view.sel().clear()
-            current_view.sel().add_all(current_sel)
-            current_view.show(visible_region, show_surrounds=False)
+        def set_selection(view, selections, visible_region):
+            view.window().focus_view(view)
+            view.sel().clear()
+            view.sel().add_all(selections)
+            view.show(visible_region, show_surrounds=False)
 
         def build_location(location: dict):
             file_name = lsp_client.uri_to_path(location["uri"])
@@ -630,15 +630,18 @@ class PyserverHandler(lsp_client.BaseHandler):
 
         def open_location(index):
             if index < 0:
-                restore_selection()
+                # canceled
+                set_selection(
+                    current_view,
+                    current_selections,
+                    current_visible_region,
+                )
                 return
 
-            flags = sublime.ENCODED_POSITION
-            sublime.active_window().open_file(locations[index], flags=flags)
+            workspace.open_document(locations[index])
 
         def preview_location(index):
-            flags = sublime.ENCODED_POSITION | sublime.TRANSIENT
-            sublime.active_window().open_file(locations[index], flags=flags)
+            workspace.open_document(locations[index], preview=True)
 
         sublime.active_window().show_quick_panel(
             items=locations,
