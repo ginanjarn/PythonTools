@@ -360,3 +360,32 @@ class Workspace:
             for file_name, diagnostic in self.diagnostics.items()
             if file_name not in invalid_keys
         }
+
+
+def create_document(file_name: PathStr, text: str = ""):
+    """create document"""
+    path = Path(file_name)
+    path.touch()
+    path.write_text(text)
+
+
+def rename_document(old_name: PathStr, new_name: PathStr):
+    """rename document"""
+    path = Path(old_name)
+    path.rename(new_name)
+
+    # Sublime Text didn't update the view target if renamed
+    for window in sublime.windows():
+        for view in [v for v in window.views() if v.file_name() == old_name]:
+            view.retarget(new_name)
+
+
+def delete_document(file_name: PathStr):
+    """delete document"""
+    path = Path(file_name)
+    path.unlink()
+
+    # Sublime Text didn't close deleted file
+    for window in sublime.windows():
+        for view in [v for v in window.views() if v.file_name() == file_name]:
+            view.close()

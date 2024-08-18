@@ -15,6 +15,7 @@ from sublime import HoverZone
 
 from .api import lsp_client
 from .api.sublime_settings import Settings
+from . import workspace
 from .workspace import (
     BufferedDocument,
     TextChange,
@@ -533,26 +534,18 @@ class PyserverHandler(lsp_client.BaseHandler):
     @staticmethod
     def _create_document(document_changes: dict):
         file_name = lsp_client.uri_to_path(document_changes["uri"])
-        Path(file_name).touch()
+        workspace.create_document(file_name)
 
     @staticmethod
     def _rename_document(document_changes: dict):
         old_name = lsp_client.uri_to_path(document_changes["oldUri"])
         new_name = lsp_client.uri_to_path(document_changes["newUri"])
-
-        Path(old_name).rename(new_name)
-        if view := sublime.active_window().find_open_file(old_name):
-            # retarget buffer to new path
-            view.retarget(new_name)
+        workspace.rename_document(old_name, new_name)
 
     @staticmethod
     def _delete_document(document_changes: dict):
         file_name = lsp_client.uri_to_path(document_changes["uri"])
-
-        Path(file_name).unlink()
-        if view := sublime.active_window().find_open_file(file_name):
-            # close opened buffer
-            view.close()
+        workspace.delete_document(file_name)
 
     def _apply_resource_changes(self, document_changes: dict):
         func = {
