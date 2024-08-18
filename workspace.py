@@ -128,22 +128,23 @@ class TextHighlighter:
 
 class UnbufferedDocument:
     def __init__(self, file_name: PathStr):
-        self._path = Path(file_name)
+        self.file_name = file_name
+        self.text = Path(file_name).read_text()
 
-    @property
-    def text(self):
-        return self._path.read_text()
-
-    def apply_text_changes(self, changes: List[dict]):
+    def apply_text_changes(self, changes: List[TextChange]):
         with MULTIDOCUMENT_CHANGE_LOCK:
-            self._apply_text_changes(changes)
+            self.text = self._update_text(self.text, changes)
 
-    def _apply_text_changes(self, changes: List[TextChange]):
+    @staticmethod
+    def _update_text(source: str, changes: List[TextChange]) -> str:
+        temp = source
+        line_separator = "\n"
+
         for change in changes:
             try:
                 start = change.start
                 end = change.end
-                new_text = change["newText"]
+                new_text = change.text
 
                 start_line, start_character = start[0], start[1]
                 end_line, end_character = end[0], end[1]
@@ -151,7 +152,7 @@ class UnbufferedDocument:
             except KeyError as err:
                 raise Exception(f"invalid params {err}") from err
 
-            lines = self.text.split("\n")
+            lines = temp.split(line_separator)
             temp_lines = []
 
             # pre change line
@@ -164,10 +165,12 @@ class UnbufferedDocument:
             # post change line
             temp_lines.extend(lines[end_line + 1 :])
 
-            self.text = "\n".join(temp_lines)
+            temp = line_separator.join(temp_lines)
+
+        return temp
 
     def save(self):
-        self._path.write_text(self.text)
+        Path(self.file_name).write_text(self.text)
 
 
 class BufferedDocument:
