@@ -29,6 +29,7 @@ PathStr = str
 PACKAGE_NAME = str(Path(__file__).parent)
 LOGGING_CHANNEL = "pythontools"
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
+VIEW_SELECTOR = "source.python"
 
 
 def setup_logger(level: int):
@@ -741,14 +742,11 @@ def plugin_unloaded():
         HANDLER.terminate()
 
 
-def valid_context(view: sublime.View, point: int):
-    if not (view and view.is_valid()):
-        return False
-
-    # Console is valid selector for 'source.python' but the file_name is None.
+def is_valid_document(view: sublime.View) -> bool:
+    """"""
     if not view.file_name():
         return False
-    return view.match_selector(point, "source.python")
+    return view.match_selector(0, VIEW_SELECTOR)
 
 
 def get_workspace_path(view: sublime.View) -> str:
@@ -770,7 +768,7 @@ class EventListener(sublime_plugin.EventListener):
 
     def on_hover(self, view: sublime.View, point: int, hover_zone: HoverZone):
         # check point in valid source
-        if not (valid_context(view, point) and hover_zone == sublime.HOVER_TEXT):
+        if not (is_valid_document(view) and hover_zone == sublime.HOVER_TEXT):
             return
 
         row, col = view.rowcol(point)
@@ -802,7 +800,7 @@ class EventListener(sublime_plugin.EventListener):
         point = locations[0]
 
         # check point in valid source
-        if not valid_context(view, point):
+        if not is_valid_document(view):
             return None
 
         if (
@@ -851,7 +849,7 @@ class EventListener(sublime_plugin.EventListener):
 
     def on_activated_async(self, view: sublime.View):
         # check point in valid source
-        if not valid_context(view, 0):
+        if not is_valid_document(view):
             return
 
         if HANDLER.is_ready():
@@ -868,7 +866,7 @@ class EventListener(sublime_plugin.EventListener):
 
     def on_post_save_async(self, view: sublime.View):
         # check point in valid source
-        if not valid_context(view, 0):
+        if not is_valid_document(view):
             return
 
         if HANDLER.is_ready():
@@ -876,7 +874,7 @@ class EventListener(sublime_plugin.EventListener):
 
     def on_close(self, view: sublime.View):
         # check point in valid source
-        if not valid_context(view, 0):
+        if not is_valid_document(view):
             return
 
         if HANDLER.is_ready():
@@ -884,7 +882,7 @@ class EventListener(sublime_plugin.EventListener):
 
     def on_load(self, view: sublime.View):
         # check point in valid source
-        if not valid_context(view, 0):
+        if not is_valid_document(view):
             return
 
         if HANDLER.is_ready():
@@ -892,7 +890,7 @@ class EventListener(sublime_plugin.EventListener):
 
     def on_reload(self, view: sublime.View):
         # check point in valid source
-        if not valid_context(view, 0):
+        if not is_valid_document(view):
             return
 
         if HANDLER.is_ready():
@@ -900,7 +898,7 @@ class EventListener(sublime_plugin.EventListener):
 
     def on_revert(self, view: sublime.View):
         # check point in valid source
-        if not valid_context(view, 0):
+        if not is_valid_document(view):
             return
 
         if HANDLER.is_ready():
@@ -912,7 +910,7 @@ class TextChangeListener(sublime_plugin.TextChangeListener):
         view = self.buffer.primary_view()
 
         # check point in valid source
-        if not valid_context(view, 0):
+        if not is_valid_document(view):
             return
 
         if HANDLER.is_ready():
@@ -940,7 +938,7 @@ class PythontoolsDocumentFormattingCommand(sublime_plugin.TextCommand):
             HANDLER.textdocument_formatting(self.view)
 
     def is_visible(self):
-        return valid_context(self.view, 0)
+        return is_valid_document(self.view)
 
 
 class PythontoolsGotoDefinitionCommand(sublime_plugin.TextCommand):
@@ -952,7 +950,7 @@ class PythontoolsGotoDefinitionCommand(sublime_plugin.TextCommand):
             HANDLER.textdocument_definition(self.view, start_row, start_col)
 
     def is_visible(self):
-        return valid_context(self.view, 0)
+        return is_valid_document(self.view)
 
     def want_event(self):
         return True
@@ -971,7 +969,7 @@ class PythontoolsRenameCommand(sublime_plugin.TextCommand):
             HANDLER.textdocument_preparerename(self.view, start_row, start_col)
 
     def is_visible(self):
-        return valid_context(self.view, 0)
+        return is_valid_document(self.view)
 
     def want_event(self):
         return True
