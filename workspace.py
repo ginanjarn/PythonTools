@@ -53,12 +53,11 @@ class PythontoolsApplyTextChangesCommand(sublime_plugin.TextCommand):
     def run(self, edit: sublime.Edit, changes: List[dict]):
         text_changes = [self.to_text_change(self.view, c) for c in changes]
         active_selection = list(self.view.sel())
-        visible_region = self.view.visible_region()
 
         with MULTIDOCUMENT_CHANGE_LOCK:
             self.apply(edit, text_changes)
-            self.relocate_selection(active_selection, text_changes)
-            self.view.show(visible_region, show_surrounds=False)
+
+        self.relocate_selection(active_selection, text_changes)
 
     @staticmethod
     def to_text_change(view: sublime.View, change: dict) -> _BufferedTextChange:
