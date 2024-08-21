@@ -45,38 +45,34 @@ def setup_logger(level: int):
     LOGGER.addHandler(sh)
 
 
-# custom kind
-KIND_PATH = (sublime.KIND_ID_VARIABLE, "p", "")
-KIND_VALUE = (sublime.KIND_ID_VARIABLE, "u", "")
-KIND_TEXT = (sublime.KIND_ID_VARIABLE, "t", "")
 COMPLETION_KIND_MAP = defaultdict(
     lambda _: sublime.KIND_AMBIGUOUS,
     {
-        1: KIND_TEXT,  # text
-        2: sublime.KIND_FUNCTION,  # method
-        3: sublime.KIND_FUNCTION,  # function
-        4: sublime.KIND_FUNCTION,  # constructor
-        5: sublime.KIND_VARIABLE,  # field
-        6: sublime.KIND_VARIABLE,  # variable
-        7: sublime.KIND_TYPE,  # class
-        8: sublime.KIND_TYPE,  # interface
-        9: sublime.KIND_NAMESPACE,  # module
-        10: sublime.KIND_VARIABLE,  # property
-        11: KIND_VALUE,  # unit
-        12: KIND_VALUE,  # value
-        13: sublime.KIND_NAMESPACE,  # enum
-        14: sublime.KIND_KEYWORD,  # keyword
-        15: sublime.KIND_SNIPPET,  # snippet
-        16: KIND_VALUE,  # color
-        17: KIND_PATH,  # file
-        18: sublime.KIND_NAVIGATION,  # reference
-        19: KIND_PATH,  # folder
-        20: sublime.KIND_VARIABLE,  # enum member
-        21: sublime.KIND_VARIABLE,  # constant
-        22: sublime.KIND_TYPE,  # struct
-        23: sublime.KIND_MARKUP,  # event
-        24: sublime.KIND_MARKUP,  # operator
-        25: sublime.KIND_TYPE,  # type parameter
+        1: (sublime.KindId.COLOR_ORANGISH, "t", ""),  # text
+        2: (sublime.KindId.FUNCTION, "", ""),  # method
+        3: (sublime.KindId.FUNCTION, "", ""),  # function
+        4: (sublime.KindId.FUNCTION, "c", ""),  # constructor
+        5: (sublime.KindId.VARIABLE, "", ""),  # field
+        6: (sublime.KindId.VARIABLE, "", ""),  # variable
+        7: (sublime.KindId.TYPE, "", ""),  # class
+        8: (sublime.KindId.TYPE, "", ""),  # interface
+        9: (sublime.KindId.NAMESPACE, "", ""),  # module
+        10: (sublime.KindId.VARIABLE, "", ""),  # property
+        11: (sublime.KindId.TYPE, "", ""),  # unit
+        12: (sublime.KindId.COLOR_ORANGISH, "v", ""),  # value
+        13: (sublime.KindId.TYPE, "", ""),  # enum
+        14: (sublime.KindId.KEYWORD, "", ""),  # keyword
+        15: (sublime.KindId.SNIPPET, "s", ""),  # snippet
+        16: (sublime.KindId.VARIABLE, "v", ""),  # color
+        17: (sublime.KindId.VARIABLE, "p", ""),  # file
+        18: (sublime.KindId.VARIABLE, "p", ""),  # reference
+        19: (sublime.KindId.VARIABLE, "p", ""),  # folder
+        20: (sublime.KindId.VARIABLE, "v", ""),  # enum member
+        21: (sublime.KindId.VARIABLE, "c", ""),  # constant
+        22: (sublime.KindId.TYPE, "", ""),  # struct
+        23: (sublime.KindId.TYPE, "e", ""),  # event
+        24: (sublime.KindId.KEYWORD, "", ""),  # operator
+        25: (sublime.KindId.TYPE, "", ""),  # type parameter
     },
 )
 
