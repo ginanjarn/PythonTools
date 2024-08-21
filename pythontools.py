@@ -7,13 +7,14 @@ from dataclasses import dataclass
 from functools import wraps
 from io import StringIO
 from pathlib import Path
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Callable
 
 import sublime
 import sublime_plugin
 from sublime import HoverZone
 
 from .api import lsp_client
+from .api import errors
 from .api.sublime_settings import Settings
 from . import workspace
 from .workspace import (
@@ -25,6 +26,8 @@ from .workspace import (
 )
 
 PathStr = str
+PathEncodedStr = str
+"""Path encoded '<file_name>:<row>:<column>'"""
 
 PACKAGE_NAME = str(Path(__file__).parent)
 LOGGING_CHANNEL = "pythontools"
@@ -160,10 +163,17 @@ class ActionTarget:
     rename: BufferedDocument = None
 
 
-class PyserverHandler(lsp_client.BaseHandler):
-    """"""
+class BaseHandler(lsp_client.Handler):
+    """Base handler"""
 
-    session = Session()
+    def handle(self, method: str, params: dict) -> Optional[dict]:
+        norm_method = f"handle_{method}".replace("/", "_").replace(".", "_").lower()
+        try:
+            func = getattr(self, norm_method)
+        except AttributeError as err:
+            raise errors.MethodNotFound(method) from err
+
+        return func(params)
 
     def __init__(self, transport: lsp_client.Transport):
         self.transport = transport
@@ -177,6 +187,7 @@ class PyserverHandler(lsp_client.BaseHandler):
 
         # commands document target
         self.action_target = ActionTarget()
+        self.run_server_lock = threading.Lock()
 
     def _reset_state(self):
         self._initializing = False
@@ -188,21 +199,7 @@ class PyserverHandler(lsp_client.BaseHandler):
         self.action_target = ActionTarget()
         self.session.done()
 
-    @staticmethod
-    def get_settings_envs() -> Optional[dict]:
-        with Settings() as settings:
-            if envs := settings.get("envs"):
-                return envs
-
-            sublime.active_window().run_command("pythontools_set_environment")
-            return None
-
-    def is_ready(self) -> bool:
-        return self.client.is_server_running() and self.session.is_begin()
-
-    run_server_lock = threading.Lock()
-
-    def run_server(self):
+    def run_server(self, env: Optional[dict] = None):
         # only one thread can run server
         if self.run_server_lock.locked():
             return
@@ -214,16 +211,66 @@ class PyserverHandler(lsp_client.BaseHandler):
                 # we must reset the state before run server
                 self._reset_state()
 
-                self.client.run_server(self.get_settings_envs())
+                self.client.run_server(env)
                 self.client.listen()
+
+    @staticmethod
+    def _open_locations(view: sublime.View, locations: List[PathEncodedStr]):
+        """"""
+        current_selections = tuple(view.sel())
+        current_visible_region = view.visible_region()
+
+        def set_selection(view, selections, visible_region):
+            view.window().focus_view(view)
+            view.sel().clear()
+            view.sel().add_all(selections)
+            view.show(visible_region, show_surrounds=False)
+
+        locations = sorted(locations)
+
+        def open_location(index):
+            if index < 0:
+                # canceled
+                set_selection(view, current_selections, current_visible_region)
+                return
+
+            workspace.open_document(locations[index])
+
+        def preview_location(index):
+            workspace.open_document(locations[index], preview=True)
+
+        sublime.active_window().show_quick_panel(
+            items=locations,
+            on_select=open_location,
+            flags=sublime.MONOSPACE_FONT,
+            on_highlight=preview_location,
+            placeholder="Open location...",
+        )
+
+    @staticmethod
+    def _input_rename(old_name: str, on_done_callback: Callable[[str], None]):
+        """"""
+        sublime.active_window().show_input_panel(
+            caption="rename",
+            initial_text=old_name,
+            on_done=on_done_callback,
+            on_change=None,
+            on_cancel=None,
+        )
+
+
+class PyserverHandler(BaseHandler):
+    """"""
+
+    session = Session()
+
+    def is_ready(self) -> bool:
+        return self.client.is_server_running() and self.session.is_begin()
 
     def terminate(self):
         """exit session"""
         self.client.terminate_server()
         self._reset_state()
-
-    def active_window(self) -> sublime.Window:
-        return sublime.active_window()
 
     def initialize(self, view: sublime.View):
         # cancel if initializing
@@ -609,54 +656,20 @@ class PyserverHandler(lsp_client.BaseHandler):
             )
             self.action_target.definition = document
 
-    def _open_locations(self, locations: List[dict]):
-        current_view = self.action_target.definition.view
-        current_selections = tuple(current_view.sel())
-        current_visible_region = current_view.visible_region()
-
-        def set_selection(view, selections, visible_region):
-            view.window().focus_view(view)
-            view.sel().clear()
-            view.sel().add_all(selections)
-            view.show(visible_region, show_surrounds=False)
-
-        def build_location(location: dict):
-            file_name = lsp_client.uri_to_path(location["uri"])
-            row = location["range"]["start"]["line"]
-            col = location["range"]["start"]["character"]
-            return f"{file_name}:{row+1}:{col+1}"
-
-        locations = [build_location(l) for l in locations]
-        locations.sort()
-
-        def open_location(index):
-            if index < 0:
-                # canceled
-                set_selection(
-                    current_view,
-                    current_selections,
-                    current_visible_region,
-                )
-                return
-
-            workspace.open_document(locations[index])
-
-        def preview_location(index):
-            workspace.open_document(locations[index], preview=True)
-
-        sublime.active_window().show_quick_panel(
-            items=locations,
-            on_select=open_location,
-            flags=sublime.MONOSPACE_FONT,
-            on_highlight=preview_location,
-            placeholder="Open location...",
-        )
+    @staticmethod
+    def _build_location(location: dict) -> PathEncodedStr:
+        file_name = lsp_client.uri_to_path(location["uri"])
+        row = location["range"]["start"]["line"]
+        col = location["range"]["start"]["character"]
+        return f"{file_name}:{row+1}:{col+1}"
 
     def handle_textdocument_definition(self, params: dict):
         if error := params.get("error"):
             print(error["message"])
         elif result := params.get("result"):
-            self._open_locations(result)
+            view = self.action_target.definition.view
+            locations = [self._build_location(l) for l in result]
+            self._open_locations(view, locations)
 
     @session.must_begin
     def textdocument_preparerename(self, view, row, col):
@@ -681,33 +694,29 @@ class PyserverHandler(lsp_client.BaseHandler):
             },
         )
 
-    def _input_rename(self, symbol_location: dict):
+    def _handle_preparerename(self, location: dict):
         view = self.action_target.rename.view
 
-        start = symbol_location["range"]["start"]
+        start = location["range"]["start"]
         start_point = view.text_point(start["line"], start["character"])
-        end = symbol_location["range"]["end"]
+        end = location["range"]["end"]
         end_point = view.text_point(end["line"], end["character"])
 
         region = sublime.Region(start_point, end_point)
         old_name = view.substr(region)
+        row, col = view.rowcol(start_point)
 
         def request_rename(new_name):
-            self.textdocument_rename(new_name, start["line"], start["character"])
+            if new_name and old_name != new_name:
+                self.textdocument_rename(new_name, row, col)
 
-        sublime.active_window().show_input_panel(
-            caption="rename",
-            initial_text=old_name,
-            on_done=request_rename,
-            on_change=None,
-            on_cancel=None,
-        )
+        self._input_rename(old_name, request_rename)
 
     def handle_textdocument_preparerename(self, params: dict):
         if error := params.get("error"):
             print(error["message"])
         elif result := params.get("result"):
-            self._input_rename(result)
+            self._handle_preparerename(result)
 
     def handle_textdocument_rename(self, params: dict):
         if error := params.get("error"):
@@ -762,6 +771,15 @@ def get_workspace_path(view: sublime.View) -> str:
     return str(Path(file_name).parent)
 
 
+def get_settings_envs() -> Optional[dict]:
+    with Settings() as settings:
+        if envs := settings.get("envs"):
+            return envs
+
+        sublime.active_window().run_command("pythontools_set_environment")
+        return None
+
+
 class EventListener(sublime_plugin.EventListener):
     def __init__(self):
         self.prev_completion_point = 0
@@ -782,7 +800,7 @@ class EventListener(sublime_plugin.EventListener):
 
         # initialize server if not ready
         if not HANDLER.is_ready():
-            HANDLER.run_server()
+            HANDLER.run_server(get_settings_envs())
             HANDLER.initialize(view)
 
         # on multi column layout, sometime we hover on other document which may
@@ -860,7 +878,7 @@ class EventListener(sublime_plugin.EventListener):
             return
 
         # initialize server
-        HANDLER.run_server()
+        HANDLER.run_server(get_settings_envs())
         HANDLER.initialize(view)
         HANDLER.textdocument_didopen(view)
 

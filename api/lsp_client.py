@@ -16,8 +16,6 @@ from urllib.parse import unquote, urlparse
 from urllib.request import url2pathname
 from typing import Optional, Union, List
 
-from . import errors
-
 URI = str
 _PathLikeStr = str
 
@@ -35,21 +33,12 @@ def uri_to_path(uri: URI) -> _PathLikeStr:
     return url2pathname(unquote(urlparse(uri).path))
 
 
-class BaseHandler:
+class Handler(ABC):
     """Base handler"""
 
-    @staticmethod
-    def flatten_method(method: str) -> str:
-        return f"handle_{method}".replace("/", "_").replace(".", "_").lower()
-
-    def handle(self, method: str, params: dict):
-        try:
-            func = getattr(self, self.flatten_method(method))
-        except AttributeError as err:
-            raise errors.MethodNotFound(f"method not found {method!r}") from err
-
-        else:
-            return func(params)
+    @abstractmethod
+    def handle(self, method: str, params: dict) -> Optional[dict]:
+        """handle message"""
 
 
 class RPCMessage(dict):
@@ -349,7 +338,7 @@ class RequestManager:
 
 
 class Client:
-    def __init__(self, transport: Transport, handler: BaseHandler):
+    def __init__(self, transport: Transport, handler: Handler):
         self._transport = weakref.ref(transport, lambda x: self._reset_state())
         self._handler = weakref.ref(handler, lambda x: self._reset_state())
 

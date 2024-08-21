@@ -23,6 +23,13 @@ class InvalidRequest(BaseRPCError):
 class MethodNotFound(BaseRPCError):
     """method not found"""
 
+    def __init__(self, name: str):
+        super().__init__(name)
+        self.name = name
+
+    def __repr__(self):
+        return f"MethodNotFound({self.name}!r)"
+
     code = -32601
     message = "method not found"
 
