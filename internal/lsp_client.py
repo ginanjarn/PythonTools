@@ -16,10 +16,11 @@ from urllib.parse import unquote, urlparse
 from urllib.request import url2pathname
 from typing import Optional, Union, List
 
+from .constant import LOGGING_CHANNEL
+
 URI = str
 _PathLikeStr = str
 
-LOGGING_CHANNEL = "pythontools"
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
 
 
