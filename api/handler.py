@@ -3,15 +3,14 @@
 import threading
 from collections import defaultdict
 from dataclasses import dataclass
-
-from pathlib import Path
 from typing import Optional, List, Callable
 
 import sublime
 
+from . import errors
+from . import lsp_client
 from . import workspace
-from .api import errors
-from .api import lsp_client
+from .constant import PACKAGE_NAME
 from .workspace import (
     BufferedDocument,
     Workspace,
@@ -21,8 +20,6 @@ from .workspace import (
 PathStr = str
 PathEncodedStr = str
 """Path encoded '<file_name>:<row>:<column>'"""
-
-PACKAGE_NAME = str(Path(__file__).parent)
 
 
 COMPLETION_KIND_MAP = defaultdict(

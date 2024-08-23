@@ -2,19 +2,21 @@
 
 import logging
 import threading
+from dataclasses import dataclass
 from typing import List, Optional
 
 import sublime
 import sublime_plugin
 from sublime import HoverZone
 
-from .handler import BaseHandler
-from .pyserver_handler import (
-    LOGGING_CHANNEL,
+from .api.handler import BaseHandler
+from .api.constant import LOGGING_CHANNEL
+from .api.pyserver_handler import (
     is_valid_document,
     get_handler,
     get_settings_envs,
 )
+from .api.workspace import TextChange
 
 
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
@@ -265,3 +267,63 @@ class PythontoolsTerminateCommand(sublime_plugin.WindowCommand):
 
     def is_visible(self):
         return HANDLER and HANDLER.is_ready()
+
+
+@dataclass
+class _BufferedTextChange:
+    """"""
+
+    region: sublime.Region
+    new_text: str
+    cursor_move: int = 0
+
+    def moved_region(self, move: int) -> sublime.Region:
+        return sublime.Region(self.region.a + move, self.region.b + move)
+
+
+class ZzzApplyTextChangesCommand(sublime_plugin.TextCommand):
+    """changes item must serialized from 'TextChange'"""
+
+    def run(self, edit: sublime.Edit, changes: List[dict]):
+        text_changes = [self.to_text_change(self.view, c) for c in changes]
+        active_selection = list(self.view.sel())
+
+        self.apply(edit, text_changes)
+        self.relocate_selection(active_selection, text_changes)
+
+    @staticmethod
+    def to_text_change(view: sublime.View, change: dict) -> _BufferedTextChange:
+        change = TextChange(**change)
+        start_point = view.text_point(*change.start)
+        end_point = view.text_point(*change.end)
+
+        region = sublime.Region(start_point, end_point)
+        cursor_move = len(change.text) - region.size()
+
+        return _BufferedTextChange(region, change.text, cursor_move)
+
+    def apply(self, edit: sublime.Edit, text_changes: List[_BufferedTextChange]):
+        cursor_move = 0
+        for change in text_changes:
+            replaced_region = change.moved_region(cursor_move)
+            self.view.erase(edit, replaced_region)
+            self.view.insert(edit, replaced_region.a, change.new_text)
+            cursor_move += change.cursor_move
+
+    def relocate_selection(
+        self, selections: List[sublime.Region], changes: List[_BufferedTextChange]
+    ):
+        """relocate current selection following text changes"""
+        moved_selections = []
+        for selection in selections:
+            temp_selection = selection
+            for change in changes:
+                if temp_selection.begin() > change.region.begin():
+                    temp_selection.a += change.cursor_move
+                    temp_selection.b += change.cursor_move
+
+            moved_selections.append(temp_selection)
+
+        # we must clear current selection
+        self.view.sel().clear()
+        self.view.sel().add_all(moved_selections)

@@ -1,3 +1,5 @@
+"""pyserver spesific handler"""
+
 import logging
 import threading
 
@@ -8,25 +10,25 @@ from typing import Optional, Dict, List, Any
 
 import sublime
 
+from . import lsp_client
 from . import workspace
-from .api import lsp_client
-from .api.sublime_settings import Settings
+from .constant import (
+    LOGGING_CHANNEL,
+    PACKAGE_NAME,
+    VIEW_SELECTOR,
+)
 from .handler import BaseHandler, COMPLETION_KIND_MAP
+from .sublime_settings import Settings
 from .workspace import (
     BufferedDocument,
     UnbufferedDocument,
     TextChange,
 )
 
-
 PathStr = str
 PathEncodedStr = str
 """Path encoded '<file_name>:<row>:<column>'"""
-
-PACKAGE_NAME = str(Path(__file__).parent)
-LOGGING_CHANNEL = "pythontools"
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
-VIEW_SELECTOR = "source.python"
 
 
 class Session:
@@ -535,8 +537,9 @@ class PyserverHandler(BaseHandler):
 
 def get_handler() -> BaseHandler:
     """"""
-    # pyserver path defined here because it located relativeto this file
-    server_path = Path(__file__).parent.joinpath("pyserver")
+    package_path = Path(sublime.packages_path(), PACKAGE_NAME)
+
+    server_path = package_path.joinpath("pyserver")
     command = ["python", "-m", "pyserver", "-i"]
     transport = lsp_client.StandardIO(command, server_path)
     return PyserverHandler(transport)
