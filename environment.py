@@ -9,8 +9,8 @@ from typing import Iterator, Iterable
 import sublime
 import sublime_plugin
 
-from .api import virtual_environment as venv
-from .api.sublime_settings import Settings
+from .internal import virtual_environment as venv
+from .internal.sublime_settings import Settings
 
 
 def get_workspace_path(view: sublime.View) -> str:

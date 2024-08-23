@@ -9,14 +9,14 @@ import sublime
 import sublime_plugin
 from sublime import HoverZone
 
-from .api.handler import BaseHandler
-from .api.constant import LOGGING_CHANNEL
-from .api.pyserver_handler import (
+from .internal.handler import BaseHandler
+from .internal.constant import LOGGING_CHANNEL
+from .internal.pyserver_handler import (
     is_valid_document,
     get_handler,
     get_settings_envs,
 )
-from .api.workspace import TextChange
+from .internal.workspace import TextChange
 
 
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
