@@ -14,6 +14,7 @@ from .constant import PACKAGE_NAME
 from .workspace import (
     BufferedDocument,
     Workspace,
+    TextChange,
     TextHighlighter,
 )
 
@@ -206,7 +207,7 @@ class BaseHandler(lsp_client.Handler):
     def textdocument_didsave(self, view: sublime.View) -> None: ...
     def textdocument_didclose(self, view: sublime.View) -> None: ...
     def textdocument_didchange(
-        self, view: sublime.View, changes: List[dict]
+        self, view: sublime.View, changes: List[TextChange]
     ) -> None: ...
     def textdocument_hover(self, view: sublime.View, row: int, col: int) -> None: ...
     def textdocument_completion(

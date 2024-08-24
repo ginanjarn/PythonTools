@@ -192,8 +192,20 @@ class PyserverHandler(BaseHandler):
                 {"textDocument": {"uri": document.document_uri()}},
             )
 
+    def _text_change_to_rpc(self, text_change: TextChange) -> dict:
+        start = text_change.start
+        end = text_change.end
+        return {
+            "range": {
+                "end": {"character": end.column, "line": end.row},
+                "start": {"character": start.column, "line": start.row},
+            },
+            "rangeLength": len(text_change.text.encode()),
+            "text": text_change.text,
+        }
+
     @session.must_begin
-    def textdocument_didchange(self, view: sublime.View, changes: List[dict]):
+    def textdocument_didchange(self, view: sublime.View, changes: List[TextChange]):
         # Document can be related to multiple View but has same file_name.
         # Use get_document_by_name() because may be document already open
         # in other view and the argument view not assigned.
@@ -202,7 +214,7 @@ class PyserverHandler(BaseHandler):
             self.client.send_notification(
                 "textDocument/didChange",
                 {
-                    "contentChanges": changes,
+                    "contentChanges": [self._text_change_to_rpc(c) for c in changes],
                     "textDocument": {
                         "uri": document.document_uri(),
                         "version": document.version,

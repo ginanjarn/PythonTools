@@ -28,6 +28,11 @@ class TextChange:
     end: RowColIndex
     text: str
 
+    def __post_init__(self):
+        # possibly if user pass 'start' and 'end' as tuple
+        self.start = RowColIndex(*self.start)
+        self.end = RowColIndex(*self.end)
+
 
 class TextHighlighter:
     REGIONS_KEY = f"{PACKAGE_NAME}_REGIONS"

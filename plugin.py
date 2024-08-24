@@ -198,21 +198,15 @@ class TextChangeListener(sublime_plugin.TextChangeListener):
 
         if HANDLER.is_ready():
             HANDLER.textdocument_didchange(
-                view, [self.change_as_rpc(c) for c in changes]
+                view, [self.to_text_change(c) for c in changes]
             )
 
     @staticmethod
-    def change_as_rpc(change: sublime.TextChange) -> dict:
-        start = change.a
-        end = change.b
-        return {
-            "range": {
-                "end": {"character": end.col, "line": end.row},
-                "start": {"character": start.col, "line": start.row},
-            },
-            "rangeLength": change.len_utf8,
-            "text": change.str,
-        }
+    def to_text_change(change: sublime.TextChange) -> TextChange:
+        """"""
+        start = (change.a.row, change.a.col)
+        end = (change.b.row, change.b.col)
+        return TextChange(start, end, change.str)
 
 
 class PythontoolsDocumentFormattingCommand(sublime_plugin.TextCommand):
