@@ -57,24 +57,26 @@ class EventListener(sublime_plugin.EventListener):
             return
 
         row, col = view.rowcol(point)
-        if HANDLER.is_ready():
-            HANDLER.textdocument_hover(view, row, col)
+        threading.Thread(target=self._on_hover_task, args=(view, row, col)).start()
 
-        else:
-            threading.Thread(target=self._on_hover, args=(view, row, col)).start()
-
-    def _on_hover(self, view, row, col):
-
-        # initialize server if not ready
+    def _on_hover_task(self, view: sublime.View, row: int, col: int):
         if not HANDLER.is_ready():
-            HANDLER.run_server(get_settings_envs())
-            HANDLER.initialize(view)
+            self._initialize_server(view)
 
-        # on multi column layout, sometime we hover on other document which may
-        # not loaded yet
         HANDLER.textdocument_didopen(view)
-        # request on hover
         HANDLER.textdocument_hover(view, row, col)
+
+    def _is_completion_valid(self, view: sublime.View, point: int) -> bool:
+        """is completion valid at point"""
+
+        # point unchanged
+        if point == self.prev_completion_point:
+            return True
+        # point changed but still in same word
+        word = view.word(self.prev_completion_point)
+        if view.substr(word).isidentifier() and point in word:
+            return True
+        return False
 
     def on_query_completions(
         self, view: sublime.View, prefix: str, locations: List[int]
@@ -91,19 +93,11 @@ class EventListener(sublime_plugin.EventListener):
         if (
             document := HANDLER.action_target.completion
         ) and document.is_completion_available():
-            word = view.word(self.prev_completion_point)
-            # point unchanged
-            if point == self.prev_completion_point:
-                show = True
-            # point changed but still in same word
-            elif view.substr(word).isidentifier() and point in word:
-                show = True
-            else:
-                show = False
 
-            if (cache := document.pop_completion()) and show:
+            items = document.pop_completion()
+            if items and self._is_completion_valid(view, point):
                 return sublime.CompletionList(
-                    cache, flags=sublime.INHIBIT_WORD_COMPLETIONS
+                    items, flags=sublime.INHIBIT_WORD_COMPLETIONS
                 )
 
             document.hide_completion()
@@ -132,6 +126,11 @@ class EventListener(sublime_plugin.EventListener):
 
         HANDLER.textdocument_signaturehelp(view, row, col)
 
+    def _initialize_server(self, view: sublime.View):
+        """initialize server"""
+        HANDLER.run_server(get_settings_envs())
+        HANDLER.initialize(view)
+
     def on_activated_async(self, view: sublime.View):
         # check point in valid source
         if not is_valid_document(view):
@@ -145,8 +144,7 @@ class EventListener(sublime_plugin.EventListener):
             return
 
         # initialize server
-        HANDLER.run_server(get_settings_envs())
-        HANDLER.initialize(view)
+        self._initialize_server(view)
         HANDLER.textdocument_didopen(view)
 
     def on_post_save_async(self, view: sublime.View):
