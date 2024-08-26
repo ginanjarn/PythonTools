@@ -59,3 +59,15 @@ class InvalidResource(InternalError):
     """invalid resource"""
 
     message = "invalid resource"
+
+
+def transform_error(error: BaseRPCError) -> dict:
+    """transform error to rpc"""
+
+    if not error:
+        return None
+
+    if isinstance(error, BaseRPCError):
+        return {"message": error.message, "code": error.code}
+
+    return {"message": str(error), "code": 1}

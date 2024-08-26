@@ -16,6 +16,7 @@ from urllib.parse import unquote, urlparse
 from urllib.request import url2pathname
 from typing import Optional, Union, List
 
+from . import errors
 from .constant import LOGGING_CHANNEL
 
 URI = str
@@ -81,10 +82,6 @@ class RPCMessage(dict):
         if loaded.get("jsonrpc") != "2.0":
             raise ValueError("Not a JSON-RPC 2.0")
         return cls(loaded)
-
-    @staticmethod
-    def exception_to_message(exception: Exception) -> dict:
-        return {"message": str(exception), "code": 1}
 
 
 if os.name == "nt":
@@ -433,7 +430,7 @@ class Client:
             result = self.handler.handle(message["method"], message["params"])
         except Exception as err:
             LOGGER.exception(err, exc_info=True)
-            error = RPCMessage.exception_to_message(err)
+            error = errors.transform_error(err)
 
         self.send_response(message["id"], result, error)
 
