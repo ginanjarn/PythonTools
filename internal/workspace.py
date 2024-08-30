@@ -185,8 +185,9 @@ class BufferedDocument:
         self.view.run_command("hide_auto_complete")
 
     def apply_text_changes(self, changes: List[TextChange]):
+        prefix = PACKAGE_NAME.lower()
         self.view.run_command(
-            "zzz_apply_text_changes",
+            f"{prefix}_apply_text_changes",
             {
                 "changes": [asdict(c) for c in changes],
             },
