@@ -12,7 +12,7 @@ from .handler import BaseHandler
 from .constant import LOGGING_CHANNEL
 from .pyserver_handler import (
     is_valid_document,
-    get_settings_envs,
+    get_envs_settings,
 )
 from .workspace import TextChange
 
@@ -103,7 +103,7 @@ class BaseEventListener:
 
     def _initialize_server(self, view: sublime.View):
         """initialize server"""
-        self.handler.run_server(get_settings_envs())
+        self.handler.run_server(get_envs_settings())
         self.handler.initialize(view)
 
     def _on_activated_async(self, view: sublime.View):

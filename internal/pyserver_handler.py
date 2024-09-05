@@ -578,8 +578,9 @@ def get_workspace_path(view: sublime.View) -> str:
     return str(Path(file_name).parent)
 
 
-def get_settings_envs() -> Optional[dict]:
-    """"""
+def get_envs_settings() -> Optional[dict]:
+    """get environments defined in '*.sublime-settings'"""
+
     with Settings() as settings:
         if envs := settings.get("envs"):
             return envs
