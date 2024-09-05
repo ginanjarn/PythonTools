@@ -8,13 +8,13 @@ from typing import List, Optional
 import sublime
 from sublime import HoverZone
 
-from .internal.handler import BaseHandler
-from .internal.constant import LOGGING_CHANNEL
-from .internal.pyserver_handler import (
+from .handler import BaseHandler
+from .constant import LOGGING_CHANNEL
+from .pyserver_handler import (
     is_valid_document,
     get_settings_envs,
 )
-from .internal.workspace import TextChange
+from .workspace import TextChange
 
 
 LOGGER = logging.getLogger(LOGGING_CHANNEL)

@@ -7,7 +7,8 @@ import sublime
 import sublime_plugin
 from sublime import HoverZone
 
-from .command_event_base import (
+from .internal.constant import LOGGING_CHANNEL
+from .internal.command_event_base import (
     BaseEventListener,
     BaseTextChangeListener,
     BaseApplyTextChangesCommand,
@@ -16,7 +17,6 @@ from .command_event_base import (
     BaseRenameCommand,
 )
 from .internal.handler import BaseHandler
-from .internal.constant import LOGGING_CHANNEL
 from .internal.pyserver_handler import is_valid_document, get_handler
 
 
