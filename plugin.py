@@ -18,6 +18,7 @@ from .internal.command_event_base import (
 )
 from .internal.handler import BaseHandler
 from .internal.pyserver_handler import is_valid_document, get_handler
+from .internal.sublime_settings import Settings
 
 
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
@@ -34,9 +35,22 @@ def setup_logger(level: int):
     LOGGER.addHandler(sh)
 
 
+def get_logging_settings():
+    """get logging level defined in '*.sublime-settings'"""
+    level_map = {
+        "error": logging.ERROR,
+        "warning": logging.WARNING,
+        "info": logging.INFO,
+        "verbose": logging.DEBUG,
+    }
+    with Settings() as settings:
+        settings_level = settings.get("logging")
+        return level_map.get(settings_level, logging.ERROR)
+
+
 def plugin_loaded():
     """plugin entry point"""
-    setup_logger(logging.ERROR)
+    setup_logger(get_logging_settings())
 
 
 def plugin_unloaded():

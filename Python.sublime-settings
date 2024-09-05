@@ -15,5 +15,8 @@
 
 	// Environment variables.
 	// Variables must stored as mapping eg. {"key":value}.
-	"envs": null
+	"envs": null,
+
+	// Logging level: 'error', 'warning', 'info', 'verbose'
+	"logging": "error",
 }
