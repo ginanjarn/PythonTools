@@ -186,7 +186,7 @@ class BaseTextChangeListener:
         """"""
         start = (change.a.row, change.a.col)
         end = (change.b.row, change.b.col)
-        return TextChange(start, end, change.str)
+        return TextChange(start, end, change.str, change.len_utf8)
 
 
 class BaseDocumentFormattingCommand:

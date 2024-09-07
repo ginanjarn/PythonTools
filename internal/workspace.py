@@ -27,6 +27,7 @@ class TextChange:
     start: RowColIndex
     end: RowColIndex
     text: str
+    length: int = -1
 
     def __post_init__(self):
         # possibly if user pass 'start' and 'end' as tuple

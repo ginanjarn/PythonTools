@@ -200,7 +200,7 @@ class PyserverHandler(BaseHandler):
                 "end": {"character": end.column, "line": end.row},
                 "start": {"character": start.column, "line": start.row},
             },
-            "rangeLength": len(text_change.text.encode()),
+            "rangeLength": text_change.length,
             "text": text_change.text,
         }
 
