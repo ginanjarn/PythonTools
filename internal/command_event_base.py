@@ -10,36 +10,126 @@ from sublime import HoverZone
 
 from .handler import BaseHandler
 from .constant import LOGGING_CHANNEL
-from .pyserver_handler import (
-    is_valid_document,
-    get_envs_settings,
-)
+from .pyserver_handler import is_valid_document, get_envs_settings
 from .workspace import TextChange
-
 
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
 
 
-class BaseEventListener:
+def initialize_server(handler: BaseHandler, view: sublime.View):
+    """initialize server"""
+    handler.run_server(get_envs_settings())
+    handler.initialize(view)
+
+
+class BaseOpenEventListener:
 
     def __init__(self, *args, **kwargs):
         self.handler: BaseHandler
         self.prev_completion_point = 0
 
-    def _on_hover(self, view: sublime.View, point: int, hover_zone: HoverZone):
+    def _on_activated_async(self, view: sublime.View):
         # check point in valid source
-        if not (is_valid_document(view) and hover_zone == sublime.HOVER_TEXT):
+        if not is_valid_document(view):
             return
 
-        row, col = view.rowcol(point)
-        threading.Thread(target=self._on_hover_task, args=(view, row, col)).start()
+        if self.handler.is_ready():
+            self.handler.textdocument_didopen(view)
+            return
 
-    def _on_hover_task(self, view: sublime.View, row: int, col: int):
-        if not self.handler.is_ready():
-            self._initialize_server(view)
+        if LOGGER.level == logging.DEBUG:
+            return
 
+        # initialize server
+        initialize_server(self.handler, view)
         self.handler.textdocument_didopen(view)
-        self.handler.textdocument_hover(view, row, col)
+
+    def _on_load(self, view: sublime.View):
+        # check point in valid source
+        if not is_valid_document(view):
+            return
+
+        if self.handler.is_ready():
+            self.handler.textdocument_didopen(view, reload=True)
+
+    def _on_reload(self, view: sublime.View):
+        # check point in valid source
+        if not is_valid_document(view):
+            return
+
+        if self.handler.is_ready():
+            self.handler.textdocument_didopen(view, reload=True)
+
+    def _on_revert(self, view: sublime.View):
+        # check point in valid source
+        if not is_valid_document(view):
+            return
+
+        if self.handler.is_ready():
+            self.handler.textdocument_didopen(view, reload=True)
+
+
+class BaseSaveEventListener:
+
+    def __init__(self, *args, **kwargs):
+        self.handler: BaseHandler
+        self.prev_completion_point = 0
+
+    def _on_post_save_async(self, view: sublime.View):
+        # check point in valid source
+        if not is_valid_document(view):
+            return
+
+        if self.handler.is_ready():
+            self.handler.textdocument_didsave(view)
+
+
+class BaseCloseEventListener:
+
+    def __init__(self, *args, **kwargs):
+        self.handler: BaseHandler
+        self.prev_completion_point = 0
+
+    def _on_close(self, view: sublime.View):
+        # check point in valid source
+        if not is_valid_document(view):
+            return
+
+        if self.handler.is_ready():
+            self.handler.textdocument_didclose(view)
+
+
+class BaseTextChangeListener:
+
+    def __init__(self, *args, **kwargs):
+        self.buffer: sublime.Buffer
+        self.handler: BaseHandler
+
+    def _on_text_changed(self, changes: List[sublime.TextChange]):
+        view = self.buffer.primary_view()
+
+        # check point in valid source
+        if not is_valid_document(view):
+            return
+
+        if self.handler.is_ready():
+            self.handler.textdocument_didchange(
+                view, [self.to_text_change(c) for c in changes]
+            )
+
+    @staticmethod
+    def to_text_change(change: sublime.TextChange) -> TextChange:
+        """"""
+        start = (change.a.row, change.a.col)
+        end = (change.b.row, change.b.col)
+        return TextChange(start, end, change.str, change.len_utf8)
+
+
+class BaseCompletionEventListener:
+
+    def __init__(self, *args, **kwargs):
+        self.handler: BaseHandler
+        self.prev_completion_point = 0
 
     def _is_completion_valid(self, view: sublime.View, point: int) -> bool:
         """is completion valid at point"""
@@ -101,92 +191,27 @@ class BaseEventListener:
 
         self.handler.textdocument_signaturehelp(view, row, col)
 
-    def _initialize_server(self, view: sublime.View):
-        """initialize server"""
-        self.handler.run_server(get_envs_settings())
-        self.handler.initialize(view)
 
-    def _on_activated_async(self, view: sublime.View):
-        # check point in valid source
-        if not is_valid_document(view):
-            return
-
-        if self.handler.is_ready():
-            self.handler.textdocument_didopen(view)
-            return
-
-        if LOGGER.level == logging.DEBUG:
-            return
-
-        # initialize server
-        self._initialize_server(view)
-        self.handler.textdocument_didopen(view)
-
-    def _on_post_save_async(self, view: sublime.View):
-        # check point in valid source
-        if not is_valid_document(view):
-            return
-
-        if self.handler.is_ready():
-            self.handler.textdocument_didsave(view)
-
-    def _on_close(self, view: sublime.View):
-        # check point in valid source
-        if not is_valid_document(view):
-            return
-
-        if self.handler.is_ready():
-            self.handler.textdocument_didclose(view)
-
-    def _on_load(self, view: sublime.View):
-        # check point in valid source
-        if not is_valid_document(view):
-            return
-
-        if self.handler.is_ready():
-            self.handler.textdocument_didopen(view, reload=True)
-
-    def _on_reload(self, view: sublime.View):
-        # check point in valid source
-        if not is_valid_document(view):
-            return
-
-        if self.handler.is_ready():
-            self.handler.textdocument_didopen(view, reload=True)
-
-    def _on_revert(self, view: sublime.View):
-        # check point in valid source
-        if not is_valid_document(view):
-            return
-
-        if self.handler.is_ready():
-            self.handler.textdocument_didopen(view, reload=True)
-
-
-class BaseTextChangeListener:
+class BaseHoverEventListener:
 
     def __init__(self, *args, **kwargs):
-        self.buffer: sublime.Buffer
         self.handler: BaseHandler
+        self.prev_completion_point = 0
 
-    def _on_text_changed(self, changes: List[sublime.TextChange]):
-        view = self.buffer.primary_view()
-
+    def _on_hover(self, view: sublime.View, point: int, hover_zone: HoverZone):
         # check point in valid source
-        if not is_valid_document(view):
+        if not (is_valid_document(view) and hover_zone == sublime.HOVER_TEXT):
             return
 
-        if self.handler.is_ready():
-            self.handler.textdocument_didchange(
-                view, [self.to_text_change(c) for c in changes]
-            )
+        row, col = view.rowcol(point)
+        threading.Thread(target=self._on_hover_task, args=(view, row, col)).start()
 
-    @staticmethod
-    def to_text_change(change: sublime.TextChange) -> TextChange:
-        """"""
-        start = (change.a.row, change.a.col)
-        end = (change.b.row, change.b.col)
-        return TextChange(start, end, change.str, change.len_utf8)
+    def _on_hover_task(self, view: sublime.View, row: int, col: int):
+        if not self.handler.is_ready():
+            initialize_server(self.handler, view)
+
+        self.handler.textdocument_didopen(view)
+        self.handler.textdocument_hover(view, row, col)
 
 
 class BaseDocumentFormattingCommand:

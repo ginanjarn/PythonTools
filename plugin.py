@@ -9,7 +9,11 @@ from sublime import HoverZone
 
 from .internal.constant import LOGGING_CHANNEL
 from .internal.command_event_base import (
-    BaseEventListener,
+    BaseOpenEventListener,
+    BaseSaveEventListener,
+    BaseCloseEventListener,
+    BaseHoverEventListener,
+    BaseCompletionEventListener,
     BaseTextChangeListener,
     BaseApplyTextChangesCommand,
     BaseDocumentFormattingCommand,
@@ -17,7 +21,7 @@ from .internal.command_event_base import (
     BaseRenameCommand,
 )
 from .internal.handler import BaseHandler
-from .internal.pyserver_handler import is_valid_document, get_handler
+from .internal.pyserver_handler import get_handler, is_valid_document
 from .internal.sublime_settings import Settings
 
 
@@ -59,37 +63,14 @@ def plugin_unloaded():
         HANDLER.terminate()
 
 
-class PythontoolsApplyTextChangesCommand(
-    sublime_plugin.TextCommand, BaseApplyTextChangesCommand
-):
-    """changes item must serialized from 'TextChange'"""
-
-    def run(self, edit: sublime.Edit, changes: List[dict]):
-        self._run(edit, changes)
-
-
-class PythontoolsEventListener(sublime_plugin.EventListener, BaseEventListener):
+class PythontoolsOpenEventListener(sublime_plugin.EventListener, BaseOpenEventListener):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.handler = HANDLER
 
-    def on_hover(self, view: sublime.View, point: int, hover_zone: HoverZone):
-        self._on_hover(view, point, hover_zone)
-
-    def on_query_completions(
-        self, view: sublime.View, prefix: str, locations: List[int]
-    ) -> sublime.CompletionList:
-        return self._on_query_completions(view, prefix, locations)
-
     def on_activated_async(self, view: sublime.View):
         self._on_activated_async(view)
-
-    def on_post_save_async(self, view: sublime.View):
-        self._on_post_save_async(view)
-
-    def on_close(self, view: sublime.View):
-        self._on_close(view)
 
     def on_load(self, view: sublime.View):
         self._on_load(view)
@@ -101,6 +82,28 @@ class PythontoolsEventListener(sublime_plugin.EventListener, BaseEventListener):
         self._on_revert(view)
 
 
+class PythontoolsSaveEventListener(sublime_plugin.EventListener, BaseSaveEventListener):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.handler = HANDLER
+
+    def on_post_save_async(self, view: sublime.View):
+        self._on_post_save_async(view)
+
+
+class PythontoolsCloseEventListener(
+    sublime_plugin.EventListener, BaseCloseEventListener
+):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.handler = HANDLER
+
+    def on_close(self, view: sublime.View):
+        self._on_close(view)
+
+
 class PythontoolsTextChangeListener(
     sublime_plugin.TextChangeListener, BaseTextChangeListener
 ):
@@ -110,6 +113,31 @@ class PythontoolsTextChangeListener(
 
     def on_text_changed(self, changes: List[sublime.TextChange]):
         self._on_text_changed(changes)
+
+
+class PythontoolsCompletionEventListener(
+    sublime_plugin.EventListener, BaseCompletionEventListener
+):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.handler = HANDLER
+
+    def on_query_completions(
+        self, view: sublime.View, prefix: str, locations: List[int]
+    ) -> sublime.CompletionList:
+        return self._on_query_completions(view, prefix, locations)
+
+
+class PythontoolsHoverEventListener(
+    sublime_plugin.EventListener, BaseHoverEventListener
+):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.handler = HANDLER
+
+    def on_hover(self, view: sublime.View, point: int, hover_zone: HoverZone):
+        self._on_hover(view, point, hover_zone)
 
 
 class PythontoolsDocumentFormattingCommand(
@@ -157,6 +185,15 @@ class PythontoolsRenameCommand(sublime_plugin.TextCommand, BaseRenameCommand):
 
     def want_event(self):
         return True
+
+
+class PythontoolsApplyTextChangesCommand(
+    sublime_plugin.TextCommand, BaseApplyTextChangesCommand
+):
+    """changes item must serialized from 'TextChange'"""
+
+    def run(self, edit: sublime.Edit, changes: List[dict]):
+        self._run(edit, changes)
 
 
 class PythontoolsTerminateCommand(sublime_plugin.WindowCommand):
