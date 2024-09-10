@@ -16,6 +16,7 @@ from .internal.command_event_base import (
     BaseCompletionEventListener,
     BaseTextChangeListener,
     BaseApplyTextChangesCommand,
+    BaseDocumentSignatureHelpCommand,
     BaseDocumentFormattingCommand,
     BaseGotoDefinitionCommand,
     BaseRenameCommand,
@@ -138,6 +139,20 @@ class PythontoolsHoverEventListener(
 
     def on_hover(self, view: sublime.View, point: int, hover_zone: HoverZone):
         self._on_hover(view, point, hover_zone)
+
+
+class PythontoolsDocumentSignatureHelpCommand(
+    sublime_plugin.TextCommand, BaseDocumentSignatureHelpCommand
+):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.handler = HANDLER
+
+    def run(self, edit: sublime.Edit, point: int):
+        self._run(edit, point)
+
+    def is_visible(self):
+        return is_valid_document(self.view)
 
 
 class PythontoolsDocumentFormattingCommand(

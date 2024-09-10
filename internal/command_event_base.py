@@ -9,7 +9,7 @@ import sublime
 from sublime import HoverZone
 
 from .handler import BaseHandler
-from .constant import LOGGING_CHANNEL
+from .constant import LOGGING_CHANNEL, PACKAGE_NAME
 from .pyserver_handler import is_valid_document, get_envs_settings
 from .workspace import TextChange
 
@@ -169,27 +169,18 @@ class BaseCompletionEventListener:
             return None
 
         self.prev_completion_point = point
-        row, col = view.rowcol(point)
 
+        row, col = view.rowcol(point)
         self.handler.textdocument_completion(view, row, col)
         view.run_command("hide_auto_complete")
 
-        sublime.set_timeout_async(
-            self._trigger_signaturehelp(view, point, row, col), 0.5
-        )
+        self.show_signature_help(view, point)
         return None
 
-    def _trigger_signaturehelp(
-        self, view: sublime.View, point: int, row: int, col: int
-    ):
-        # Some times server response signaturehelp after cursor moved.
-        view.hide_popup()
-
-        # Only request signature on function arguments
-        if not view.match_selector(point, "meta.function-call.arguments"):
-            return
-
-        self.handler.textdocument_signaturehelp(view, row, col)
+    def show_signature_help(self, view: sublime.View, point: int):
+        view.run_command(
+            f"{PACKAGE_NAME.lower()}_document_signature_help", {"point": point}
+        )
 
 
 class BaseHoverEventListener:
@@ -212,6 +203,25 @@ class BaseHoverEventListener:
 
         self.handler.textdocument_didopen(view)
         self.handler.textdocument_hover(view, row, col)
+
+
+class BaseDocumentSignatureHelpCommand:
+
+    def __init__(self, *args, **kwargs):
+        self.view: sublime.View
+        self.handler: BaseHandler
+
+    def _run(self, edit: sublime.Edit, point: int):
+        if self.handler.is_ready():
+            # Some times server response signaturehelp after cursor moved.
+            self.view.hide_popup()
+
+            # Only request signature on function arguments
+            if not self.view.match_selector(point, "meta.function-call.arguments"):
+                return
+
+            row, col = self.view.rowcol(point)
+            self.handler.textdocument_signaturehelp(self.view, row, col)
 
 
 class BaseDocumentFormattingCommand:
