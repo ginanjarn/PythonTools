@@ -3,7 +3,7 @@
 import threading
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Optional, List, Callable
+from typing import Optional, List, Dict, Callable, Any
 
 import sublime
 
@@ -21,6 +21,8 @@ from .workspace import (
 PathStr = str
 PathEncodedStr = str
 """Path encoded '<file_name>:<row>:<column>'"""
+MethodName = str
+HandlerFunction = Callable[[str, dict], Any]
 
 
 COMPLETION_KIND_MAP = defaultdict(
@@ -102,18 +104,12 @@ class ActionTarget:
 class BaseHandler(lsp_client.Handler):
     """Base handler"""
 
-    def handle(self, method: str, params: dict) -> Optional[dict]:
-        norm_method = f"handle_{method}".replace("/", "_").replace(".", "_").lower()
-        try:
-            func = getattr(self, norm_method)
-        except AttributeError as err:
-            raise errors.MethodNotFound(method) from err
-
-        return func(params)
-
     def __init__(self, transport: lsp_client.Transport):
         self.transport = transport
         self.client = lsp_client.Client(self.transport, self)
+
+        # server message handler
+        self.handler_map: Dict[MethodName, HandlerFunction] = {}
 
         # workspace status
         self._initializing = False
@@ -134,6 +130,18 @@ class BaseHandler(lsp_client.Handler):
         # commands document target
         self.action_target = ActionTarget()
         self.session.done()
+
+    def handle(self, method: MethodName, params: dict) -> Optional[dict]:
+        """"""
+        try:
+            func = self.handler_map[method]
+        except (KeyError, AttributeError) as err:
+            raise errors.MethodNotFound(err)
+
+        return func(params)
+
+    def register_handler(self, method: MethodName, function: HandlerFunction):
+        self.handler_map[method] = function
 
     def run_server(self, env: Optional[dict] = None) -> None:
         # only one thread can run server

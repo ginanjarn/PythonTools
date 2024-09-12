@@ -74,6 +74,30 @@ class PyserverHandler(BaseHandler):
 
     session = Session()
 
+    def __init__(self, transport: lsp_client.Transport):
+        super().__init__(transport)
+
+        self.handler_map.update(
+            {
+                "initialize": self.handle_initialize,
+                # window
+                "window/logMessage": self.handle_window_logmessage,
+                "window/showMessage": self.handle_window_showmessage,
+                # workspace
+                "workspace/applyEdit": self.handle_workspace_applyedit,
+                "workspace/executeCommand": self.handle_workspace_executecommand,
+                # textDocument
+                "textDocument/hover": self.handle_textdocument_hover,
+                "textDocument/completion": self.handle_textdocument_completion,
+                "textDocument/signatureHelp": self.handle_textdocument_signaturehelp,
+                "textDocument/publishDiagnostics": self.handle_textdocument_publishdiagnostics,
+                "textDocument/formatting": self.handle_textdocument_formatting,
+                "textDocument/definition": self.handle_textdocument_definition,
+                "textDocument/prepareRename": self.handle_textdocument_preparerename,
+                "textDocument/rename": self.handle_textdocument_rename,
+            }
+        )
+
     def is_ready(self) -> bool:
         return self.client.is_server_running() and self.session.is_begin()
 
