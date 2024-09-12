@@ -2,7 +2,6 @@
 
 import threading
 from collections import defaultdict
-from dataclasses import dataclass
 from typing import Optional, List, Dict, Callable, Any
 
 import sublime
@@ -91,16 +90,6 @@ class DiagnosticPanel:
             window.destroy_output_panel(self.OUTPUT_PANEL_NAME)
 
 
-@dataclass
-class ActionTarget:
-    hover: BufferedDocument = None
-    completion: BufferedDocument = None
-    signature_help: BufferedDocument = None
-    formatting: BufferedDocument = None
-    definition: BufferedDocument = None
-    rename: BufferedDocument = None
-
-
 class BaseHandler(lsp_client.Handler):
     """Base handler"""
 
@@ -110,25 +99,24 @@ class BaseHandler(lsp_client.Handler):
 
         # server message handler
         self.handler_map: Dict[MethodName, HandlerFunction] = {}
+        # document target
+        self.action_target_map: Dict[MethodName, BufferedDocument] = {}
 
         # workspace status
         self._initializing = False
         self.workspace = Workspace()
 
         self.diagnostics_panel = DiagnosticPanel()
-
-        # commands document target
-        self.action_target = ActionTarget()
         self.run_server_lock = threading.Lock()
 
     def _reset_state(self) -> None:
         self._initializing = False
         self.workspace = Workspace()
+
         self.diagnostics_panel.destroy()
         TextHighlighter.clear_all()
 
-        # commands document target
-        self.action_target = ActionTarget()
+        self.action_target_map.clear()
         self.session.done()
 
     def handle(self, method: MethodName, params: dict) -> Optional[dict]:

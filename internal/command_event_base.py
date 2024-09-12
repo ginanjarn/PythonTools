@@ -156,7 +156,7 @@ class BaseCompletionEventListener:
             return None
 
         if (
-            document := self.handler.action_target.completion
+            document := self.handler.action_target_map.get("textDocument/completion")
         ) and document.is_completion_available():
 
             items = document.pop_completion()

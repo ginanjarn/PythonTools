@@ -248,22 +248,24 @@ class PyserverHandler(BaseHandler):
 
     @session.must_begin
     def textdocument_hover(self, view, row, col):
+        method = "textDocument/hover"
         # In multi row/column layout, new popup will created in current View,
         # but active popup doesn't discarded.
-        if other := self.action_target.hover:
+        if other := self.action_target_map.get(method):
             other.view.hide_popup()
 
         if document := self.workspace.get_document(view):
             self.client.send_request(
-                "textDocument/hover",
+                method,
                 {
                     "position": {"character": col, "line": row},
                     "textDocument": {"uri": document.document_uri()},
                 },
             )
-            self.action_target.hover = document
+            self.action_target_map[method] = document
 
     def handle_textdocument_hover(self, params: dict):
+        method = "textDocument/hover"
         if err := params.get("error"):
             print(err["message"])
 
@@ -271,19 +273,20 @@ class PyserverHandler(BaseHandler):
             message = result["contents"]["value"]
             start = result["range"]["start"]
             row, col = start["line"], start["character"]
-            self.action_target.hover.show_popup(message, row, col)
+            self.action_target_map[method].show_popup(message, row, col)
 
     @session.must_begin
     def textdocument_completion(self, view, row, col):
+        method = "textDocument/completion"
         if document := self.workspace.get_document(view):
             self.client.send_request(
-                "textDocument/completion",
+                method,
                 {
                     "position": {"character": col, "line": row},
                     "textDocument": {"uri": document.document_uri()},
                 },
             )
-            self.action_target.completion = document
+            self.action_target_map[method] = document
 
     @staticmethod
     def _build_completion(completion_item: dict) -> sublime.CompletionItem:
@@ -304,26 +307,29 @@ class PyserverHandler(BaseHandler):
         )
 
     def handle_textdocument_completion(self, params: dict):
+        method = "textDocument/completion"
         if err := params.get("error"):
             print(err["message"])
 
         elif result := params.get("result"):
             items = [self._build_completion(item) for item in result["items"]]
-            self.action_target.completion.show_completion(items)
+            self.action_target_map[method].show_completion(items)
 
     @session.must_begin
     def textdocument_signaturehelp(self, view, row, col):
+        method = "textDocument/signatureHelp"
         if document := self.workspace.get_document(view):
             self.client.send_request(
-                "textDocument/signatureHelp",
+                method,
                 {
                     "position": {"character": col, "line": row},
                     "textDocument": {"uri": document.document_uri()},
                 },
             )
-            self.action_target.signature_help = document
+            self.action_target_map[method] = document
 
     def handle_textdocument_signaturehelp(self, params: dict):
+        method = "textDocument/signatureHelp"
         if err := params.get("error"):
             print(err["message"])
 
@@ -339,9 +345,9 @@ class PyserverHandler(BaseHandler):
                     "\n```",
                 ]
             )
-            view = self.action_target.signature_help.view
+            view = self.action_target_map[method].view
             row, col = view.rowcol(view.sel()[0].a)
-            self.action_target.signature_help.show_popup(message, row, col)
+            self.action_target_map[method].show_popup(message, row, col)
 
     @staticmethod
     def _build_diagnostic_message(diagnostics_map: Dict[PathStr, Any]) -> str:
@@ -408,22 +414,24 @@ class PyserverHandler(BaseHandler):
 
     @session.must_begin
     def textdocument_formatting(self, view):
+        method = "textDocument/formatting"
         if document := self.workspace.get_document(view):
             self.client.send_request(
-                "textDocument/formatting",
+                method,
                 {
                     "options": {"insertSpaces": True, "tabSize": 2},
                     "textDocument": {"uri": document.document_uri()},
                 },
             )
-            self.action_target.formatting = document
+            self.action_target_map[method] = document
 
     def handle_textdocument_formatting(self, params: dict):
+        method = "textDocument/formatting"
         if error := params.get("error"):
             print(error["message"])
         elif result := params.get("result"):
             changes = [self._get_text_change(c) for c in result]
-            self.action_target.formatting.apply_text_changes(changes)
+            self.action_target_map[method].apply_text_changes(changes)
 
     @staticmethod
     def _create_document(document_changes: dict):
@@ -492,15 +500,16 @@ class PyserverHandler(BaseHandler):
 
     @session.must_begin
     def textdocument_definition(self, view, row, col):
+        method = "textDocument/definition"
         if document := self.workspace.get_document(view):
             self.client.send_request(
-                "textDocument/definition",
+                method,
                 {
                     "position": {"character": col, "line": row},
                     "textDocument": {"uri": document.document_uri()},
                 },
             )
-            self.action_target.definition = document
+            self.action_target_map[method] = document
 
     @staticmethod
     def _build_location(location: dict) -> PathEncodedStr:
@@ -510,38 +519,44 @@ class PyserverHandler(BaseHandler):
         return f"{file_name}:{row+1}:{col+1}"
 
     def handle_textdocument_definition(self, params: dict):
+        method = "textDocument/definition"
         if error := params.get("error"):
             print(error["message"])
         elif result := params.get("result"):
-            view = self.action_target.definition.view
+            view = self.action_target_map[method].view
             locations = [self._build_location(l) for l in result]
             self._open_locations(view, locations)
 
     @session.must_begin
     def textdocument_preparerename(self, view, row, col):
+        method = "textDocument/prepareRename"
         if document := self.workspace.get_document(view):
             self.client.send_request(
-                "textDocument/prepareRename",
+                method,
                 {
                     "position": {"character": col, "line": row},
                     "textDocument": {"uri": document.document_uri()},
                 },
             )
-            self.action_target.rename = document
+            self.action_target_map[method] = document
 
     @session.must_begin
-    def textdocument_rename(self, new_name, row, col):
-        self.client.send_request(
-            "textDocument/rename",
-            {
-                "newName": new_name,
-                "position": {"character": col, "line": row},
-                "textDocument": {"uri": self.action_target.rename.document_uri()},
-            },
-        )
+    def textdocument_rename(self, view, new_name, row, col):
+        method = "textDocument/rename"
+        if document := self.workspace.get_document(view):
+            self.client.send_request(
+                method,
+                {
+                    "newName": new_name,
+                    "position": {"character": col, "line": row},
+                    "textDocument": {"uri": document.document_uri()},
+                },
+            )
+            self.action_target_map[method] = document
 
     def _handle_preparerename(self, location: dict):
-        view = self.action_target.rename.view
+        method = "textDocument/prepareRename"
+        view = self.action_target_map[method].view
 
         start = location["range"]["start"]
         start_point = view.text_point(start["line"], start["character"])
@@ -554,7 +569,7 @@ class PyserverHandler(BaseHandler):
 
         def request_rename(new_name):
             if new_name and old_name != new_name:
-                self.textdocument_rename(new_name, row, col)
+                self.textdocument_rename(view, new_name, row, col)
 
         self._input_rename(old_name, request_rename)
 
