@@ -174,7 +174,8 @@ class BaseCompletionEventListener:
         self.handler.textdocument_completion(view, row, col)
         view.run_command("hide_auto_complete")
 
-        self.show_signature_help(view, point)
+        # Use timeout because of slowdown in completion request
+        sublime.set_timeout_async(self.show_signature_help(view, point), 0.5)
         return None
 
     def show_signature_help(self, view: sublime.View, point: int):
