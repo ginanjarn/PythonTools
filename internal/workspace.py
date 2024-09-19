@@ -12,7 +12,6 @@ from typing import Dict, List, Any, Optional
 
 import sublime
 
-from . import lsp_client
 from .constant import (
     LOGGING_CHANNEL,
     PACKAGE_NAME,
@@ -143,9 +142,6 @@ class BufferedDocument:
             time.sleep(0.5)
 
         return self.view.substr(sublime.Region(0, self.view.size()))
-
-    def document_uri(self) -> lsp_client.URI:
-        return lsp_client.path_to_uri(self.file_name)
 
     def save(self):
         self.view.run_command("save")

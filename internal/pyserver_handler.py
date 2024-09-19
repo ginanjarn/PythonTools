@@ -18,6 +18,7 @@ from .constant import (
     PACKAGE_NAME,
 )
 from .handler import BaseHandler, COMPLETION_KIND_MAP
+from .lsp_client import path_to_uri, uri_to_path
 from .sublime_settings import Settings
 from .workspace import (
     BufferedDocument,
@@ -125,7 +126,7 @@ class PyserverHandler(BaseHandler):
             "initialize",
             {
                 "rootPath": workspace_path,
-                "rootUri": lsp_client.path_to_uri(workspace_path),
+                "rootUri": path_to_uri(workspace_path),
                 "capabilities": {
                     "textDocument": {
                         "hover": {
@@ -181,7 +182,7 @@ class PyserverHandler(BaseHandler):
                     "textDocument": {
                         "languageId": document.language_id,
                         "text": document.text,
-                        "uri": document.document_uri(),
+                        "uri": path_to_uri(document.file_name),
                         "version": document.version,
                     }
                 },
@@ -192,7 +193,7 @@ class PyserverHandler(BaseHandler):
         if document := self.workspace.get_document(view):
             self.client.send_notification(
                 "textDocument/didSave",
-                {"textDocument": {"uri": document.document_uri()}},
+                {"textDocument": {"uri": path_to_uri(document.file_name)}},
             )
 
         else:
@@ -214,7 +215,7 @@ class PyserverHandler(BaseHandler):
 
             self.client.send_notification(
                 "textDocument/didClose",
-                {"textDocument": {"uri": document.document_uri()}},
+                {"textDocument": {"uri": path_to_uri(document.file_name)}},
             )
 
     def _text_change_to_rpc(self, text_change: TextChange) -> dict:
@@ -241,7 +242,7 @@ class PyserverHandler(BaseHandler):
                 {
                     "contentChanges": [self._text_change_to_rpc(c) for c in changes],
                     "textDocument": {
-                        "uri": document.document_uri(),
+                        "uri": path_to_uri(document.file_name),
                         "version": document.version,
                     },
                 },
@@ -260,7 +261,7 @@ class PyserverHandler(BaseHandler):
                 method,
                 {
                     "position": {"character": col, "line": row},
-                    "textDocument": {"uri": document.document_uri()},
+                    "textDocument": {"uri": path_to_uri(document.file_name)},
                 },
             )
             self.action_target_map[method] = document
@@ -284,7 +285,7 @@ class PyserverHandler(BaseHandler):
                 method,
                 {
                     "position": {"character": col, "line": row},
-                    "textDocument": {"uri": document.document_uri()},
+                    "textDocument": {"uri": path_to_uri(document.file_name)},
                 },
             )
             self.action_target_map[method] = document
@@ -324,7 +325,7 @@ class PyserverHandler(BaseHandler):
                 method,
                 {
                     "position": {"character": col, "line": row},
-                    "textDocument": {"uri": document.document_uri()},
+                    "textDocument": {"uri": path_to_uri(document.file_name)},
                 },
             )
             self.action_target_map[method] = document
@@ -390,7 +391,7 @@ class PyserverHandler(BaseHandler):
         return sublime.Region(start_point, end_point)
 
     def handle_textdocument_publishdiagnostics(self, params: dict):
-        file_name = lsp_client.uri_to_path(params["uri"])
+        file_name = uri_to_path(params["uri"])
         diagnostics = params["diagnostics"]
 
         self.workspace.set_diagnostic(file_name, diagnostics)
@@ -421,7 +422,7 @@ class PyserverHandler(BaseHandler):
                 method,
                 {
                     "options": {"insertSpaces": True, "tabSize": 2},
-                    "textDocument": {"uri": document.document_uri()},
+                    "textDocument": {"uri": path_to_uri(document.file_name)},
                 },
             )
             self.action_target_map[method] = document
@@ -436,18 +437,18 @@ class PyserverHandler(BaseHandler):
 
     @staticmethod
     def _create_document(document_changes: dict):
-        file_name = lsp_client.uri_to_path(document_changes["uri"])
+        file_name = uri_to_path(document_changes["uri"])
         workspace.create_document(file_name)
 
     @staticmethod
     def _rename_document(document_changes: dict):
-        old_name = lsp_client.uri_to_path(document_changes["oldUri"])
-        new_name = lsp_client.uri_to_path(document_changes["newUri"])
+        old_name = uri_to_path(document_changes["oldUri"])
+        new_name = uri_to_path(document_changes["newUri"])
         workspace.rename_document(old_name, new_name)
 
     @staticmethod
     def _delete_document(document_changes: dict):
-        file_name = lsp_client.uri_to_path(document_changes["uri"])
+        file_name = uri_to_path(document_changes["uri"])
         workspace.delete_document(file_name)
 
     def _apply_resource_changes(self, document_changes: dict):
@@ -460,7 +461,7 @@ class PyserverHandler(BaseHandler):
         func[kind](document_changes)
 
     def _apply_textedit_changes(self, document_changes: dict):
-        file_name = lsp_client.uri_to_path(document_changes["textDocument"]["uri"])
+        file_name = uri_to_path(document_changes["textDocument"]["uri"])
         edits = document_changes["edits"]
         changes = [self._get_text_change(c) for c in edits]
 
@@ -507,14 +508,14 @@ class PyserverHandler(BaseHandler):
                 method,
                 {
                     "position": {"character": col, "line": row},
-                    "textDocument": {"uri": document.document_uri()},
+                    "textDocument": {"uri": path_to_uri(document.file_name)},
                 },
             )
             self.action_target_map[method] = document
 
     @staticmethod
     def _build_location(location: dict) -> PathEncodedStr:
-        file_name = lsp_client.uri_to_path(location["uri"])
+        file_name = uri_to_path(location["uri"])
         row = location["range"]["start"]["line"]
         col = location["range"]["start"]["character"]
         return f"{file_name}:{row+1}:{col+1}"
@@ -536,7 +537,7 @@ class PyserverHandler(BaseHandler):
                 method,
                 {
                     "position": {"character": col, "line": row},
-                    "textDocument": {"uri": document.document_uri()},
+                    "textDocument": {"uri": path_to_uri(document.file_name)},
                 },
             )
             self.action_target_map[method] = document
@@ -550,7 +551,7 @@ class PyserverHandler(BaseHandler):
                 {
                     "newName": new_name,
                     "position": {"character": col, "line": row},
-                    "textDocument": {"uri": document.document_uri()},
+                    "textDocument": {"uri": path_to_uri(document.file_name)},
                 },
             )
             self.action_target_map[method] = document
