@@ -9,7 +9,7 @@ import sublime
 from sublime import HoverZone
 
 from .handler import BaseHandler
-from .constant import LOGGING_CHANNEL, PACKAGE_NAME
+from .constant import LOGGING_CHANNEL, COMMAND_PREFIX
 from .pyserver_handler import is_valid_document, get_envs_settings
 from .workspace import TextChange
 
@@ -179,9 +179,7 @@ class BaseCompletionEventListener:
         return None
 
     def show_signature_help(self, view: sublime.View, point: int):
-        view.run_command(
-            f"{PACKAGE_NAME.lower()}_document_signature_help", {"point": point}
-        )
+        view.run_command(f"{COMMAND_PREFIX}_document_signature_help", {"point": point})
 
 
 class BaseHoverEventListener:

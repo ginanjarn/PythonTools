@@ -5,3 +5,4 @@ LOGGING_CHANNEL = "PythonTools"
 LANGUAGE_ID = "python"
 VIEW_SELECTOR = "source.python"
 SETTINGS_BASENAME = "Python.sublime-settings"
+COMMAND_PREFIX = PACKAGE_NAME.lower()

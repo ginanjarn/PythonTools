@@ -13,6 +13,7 @@ import sublime
 from . import lsp_client
 from . import workspace
 from .constant import (
+    COMMAND_PREFIX,
     LOGGING_CHANNEL,
     PACKAGE_NAME,
     VIEW_SELECTOR,
@@ -570,7 +571,7 @@ class PyserverHandler(BaseHandler):
         def request_rename(new_name):
             if new_name and old_name != new_name:
                 view.run_command(
-                    f"{PACKAGE_NAME.lower()}_rename",
+                    f"{COMMAND_PREFIX}_rename",
                     {"row": row, "column": col, "new_name": new_name},
                 )
 
