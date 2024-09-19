@@ -13,7 +13,12 @@ from typing import Dict, List, Any, Optional
 import sublime
 
 from . import lsp_client
-from .constant import LOGGING_CHANNEL, PACKAGE_NAME, LANGUAGE_ID
+from .constant import (
+    LOGGING_CHANNEL,
+    PACKAGE_NAME,
+    LANGUAGE_ID,
+    VIEW_SELECTOR,
+)
 
 PathStr = str
 RowColIndex = namedtuple("RowColIndex", ["row", "column"])
@@ -297,6 +302,42 @@ class Workspace:
             for file_name, diagnostic in self.diagnostics.items()
             if file_name not in invalid_keys
         }
+
+
+def is_valid_document(view: sublime.View) -> bool:
+    """check if view is valid document"""
+
+    if not view.file_name():
+        return False
+    return view.match_selector(0, VIEW_SELECTOR)
+
+
+def get_workspace_path(view: sublime.View, return_parent: bool = True) -> str:
+    """Get workspace path for view.
+
+    Params:
+        view: View
+            target
+        return_parent: bool
+            if True, return parent folder if view not opened in 'Window folders'
+
+    Returns:
+        workspace path or empty string
+    """
+    file_name = view.file_name()
+    if not file_name:
+        return ""
+
+    if folders := [
+        folder for folder in view.window().folders() if file_name.startswith(folder)
+    ]:
+        # File is opened in multiple folder
+        return max(folders)
+
+    if not return_parent:
+        return ""
+
+    return str(Path(file_name).parent)
 
 
 def open_document(file_name: PathStr, preview: bool = False):

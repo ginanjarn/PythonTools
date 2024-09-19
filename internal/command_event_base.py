@@ -10,8 +10,8 @@ from sublime import HoverZone
 
 from .handler import BaseHandler
 from .constant import LOGGING_CHANNEL, COMMAND_PREFIX
-from .pyserver_handler import is_valid_document, get_envs_settings
-from .workspace import TextChange
+from .pyserver_handler import get_envs_settings
+from .workspace import TextChange, is_valid_document
 
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
 

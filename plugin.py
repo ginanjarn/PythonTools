@@ -23,8 +23,9 @@ from .internal.command_event_base import (
     BaseRenameCommand,
 )
 from .internal.handler import BaseHandler
-from .internal.pyserver_handler import get_handler, is_valid_document
+from .internal.pyserver_handler import get_handler
 from .internal.sublime_settings import Settings
+from .internal.workspace import is_valid_document
 
 
 LOGGER = logging.getLogger(LOGGING_CHANNEL)

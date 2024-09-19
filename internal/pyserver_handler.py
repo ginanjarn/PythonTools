@@ -16,7 +16,6 @@ from .constant import (
     COMMAND_PREFIX,
     LOGGING_CHANNEL,
     PACKAGE_NAME,
-    VIEW_SELECTOR,
 )
 from .handler import BaseHandler, COMPLETION_KIND_MAP
 from .sublime_settings import Settings
@@ -24,6 +23,7 @@ from .workspace import (
     BufferedDocument,
     UnbufferedDocument,
     TextChange,
+    get_workspace_path,
 )
 
 PathStr = str
@@ -598,27 +598,6 @@ def get_handler() -> BaseHandler:
     command = ["python", "-m", "pyserver", "-i"]
     transport = lsp_client.StandardIO(command, server_path)
     return PyserverHandler(transport)
-
-
-def is_valid_document(view: sublime.View) -> bool:
-    """"""
-    if not view.file_name():
-        return False
-    return view.match_selector(0, VIEW_SELECTOR)
-
-
-def get_workspace_path(view: sublime.View) -> str:
-    """"""
-    window = view.window()
-    file_name = view.file_name()
-    if not file_name:
-        return ""
-
-    if folders := [
-        folder for folder in window.folders() if file_name.startswith(folder)
-    ]:
-        return max(folders)
-    return str(Path(file_name).parent)
 
 
 def get_envs_settings() -> Optional[dict]:
