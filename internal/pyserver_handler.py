@@ -541,7 +541,7 @@ class PyserverHandler(BaseHandler):
             self.action_target_map[method] = document
 
     @session.must_begin
-    def textdocument_rename(self, view, new_name, row, col):
+    def textdocument_rename(self, view, row, col, new_name):
         method = "textDocument/rename"
         if document := self.workspace.get_document(view):
             self.client.send_request(
@@ -569,7 +569,10 @@ class PyserverHandler(BaseHandler):
 
         def request_rename(new_name):
             if new_name and old_name != new_name:
-                self.textdocument_rename(view, new_name, row, col)
+                view.run_command(
+                    f"{PACKAGE_NAME.lower()}_rename",
+                    {"row": row, "column": col, "new_name": new_name},
+                )
 
         self._input_rename(old_name, request_rename)
 

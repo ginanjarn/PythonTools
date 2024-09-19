@@ -250,7 +250,7 @@ class BaseGotoDefinitionCommand:
             self.handler.textdocument_definition(self.view, start_row, start_col)
 
 
-class BaseRenameCommand:
+class BasePrepareRenameCommand:
 
     def __init__(self, *args, **kwargs):
         self.view: sublime.View
@@ -266,6 +266,17 @@ class BaseRenameCommand:
 
             start_row, start_col = self.view.rowcol(point)
             self.handler.textdocument_preparerename(self.view, start_row, start_col)
+
+
+class BaseRenameCommand:
+
+    def __init__(self, *args, **kwargs):
+        self.view: sublime.View
+        self.handler: BaseHandler
+
+    def _run(self, edit: sublime.Edit, row: int, column: int, new_name: str):
+        if self.handler.is_ready():
+            self.handler.textdocument_rename(self.view, row, column, new_name)
 
 
 @dataclass

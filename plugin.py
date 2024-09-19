@@ -19,6 +19,7 @@ from .internal.command_event_base import (
     BaseDocumentSignatureHelpCommand,
     BaseDocumentFormattingCommand,
     BaseGotoDefinitionCommand,
+    BasePrepareRenameCommand,
     BaseRenameCommand,
 )
 from .internal.handler import BaseHandler
@@ -186,7 +187,9 @@ class PythontoolsGotoDefinitionCommand(
         return True
 
 
-class PythontoolsRenameCommand(sublime_plugin.TextCommand, BaseRenameCommand):
+class PythontoolsPrepareRenameCommand(
+    sublime_plugin.TextCommand, BasePrepareRenameCommand
+):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -200,6 +203,19 @@ class PythontoolsRenameCommand(sublime_plugin.TextCommand, BaseRenameCommand):
 
     def want_event(self):
         return True
+
+
+class PythontoolsRenameCommand(sublime_plugin.TextCommand, BaseRenameCommand):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.handler = HANDLER
+
+    def run(self, edit: sublime.Edit, row: int, column: int, new_name: str):
+        self._run(edit, row, column, new_name)
+
+    def is_visible(self):
+        return is_valid_document(self.view)
 
 
 class PythontoolsApplyTextChangesCommand(

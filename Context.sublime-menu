@@ -21,7 +21,7 @@
 	},
 	{
 		"caption": "Rename symbol...",
-		"command": "pythontools_rename",
+		"command": "pythontools_prepare_rename",
 		"id": "pythontools",
 		"mnemonic": "R"
 	}
