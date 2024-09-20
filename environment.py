@@ -27,67 +27,68 @@ def get_workspace_path(view: sublime.View) -> str:
 
 
 class PythontoolsSetEnvironmentCommand(sublime_plugin.WindowCommand):
-    def run(self, scan=False):
+    """"""
+
+    def run(self, scan: bool = False):
         thread = threading.Thread(target=self.run_task, args=(scan,))
         thread.start()
 
-    def run_task(self, scan=False):
+    def run_task(self, scan: bool = False):
         managers = list(self.load_cache())
         if not managers or scan:
             managers = list(self.scan_managers())
             self.save_cache(managers)
 
-        titles = [m.python_bin for m in managers]
-        titles.append("Scan environments...")
+        items = [m.python_bin for m in managers]
 
-        def set_environment(manager):
-            pythonpath = manager.python_bin
-            environment = venv.get_environment(manager)
+        # Set as last item
+        items.append("Scan environments...")
+        scan_environments_index = len(items) - 1
 
-            with Settings(save=True) as settings:
-                settings.set("python", pythonpath)
-                settings.set("envs", environment)
-
-        def select_item(index=-1):
+        def on_select(index=-1):
             if index < 0:
                 return
-            elif index == len(managers):
+
+            elif index == scan_environments_index:
                 self.window.run_command("pythontools_set_environment", {"scan": True})
                 return
 
-            # we must set environment in thread to prevent blocking
-            thread = threading.Thread(target=set_environment, args=(managers[index],))
-            thread.start()
+            # Process in thread to prevent blocking
+            threading.Thread(target=self.save_settings, args=(managers[index],)).start()
 
-        self.window.show_quick_panel(titles, on_select=select_item)
+        self.window.show_quick_panel(items, on_select=on_select)
+
+    def save_settings(self, manager: venv.EnvironmentManager):
+        pythonpath = manager.python_bin
+        environment = venv.get_environment(manager)
+
+        with Settings(save=True) as settings:
+            settings.set("python", pythonpath)
+            settings.set("envs", environment)
 
     def scan_managers(self) -> Iterator[venv.EnvironmentManager]:
+        workdir = ""
         if view := self.window.active_view():
             workdir = get_workspace_path(view)
-        else:
-            workdir = ""
 
         yield from venv.scan(workdir)
 
     cache_path = Path(__file__).parent.joinpath("var/environment_managers.json")
 
     def load_cache(self) -> Iterator[venv.EnvironmentManager]:
-        if not self.cache_path.is_file():
-            return
+        try:
+            data = json.loads(self.cache_path.read_text())
+            yield from (venv.EnvironmentManager(**item) for item in data["items"])
 
-        data = json.loads(self.cache_path.read_text())
-        for item in data:
-            yield venv.EnvironmentManager(
-                python_bin=item["python_bin"],
-                activate_command=item["activate_command"],
-            )
+        except Exception:
+            pass
 
     def save_cache(self, managers: Iterable[venv.EnvironmentManager]) -> None:
-        dict_managers = [asdict(m) for m in managers]
+        items = [asdict(m) for m in managers]
+        data = json.dumps({"items": items}, indent=2)
 
         cache_dir = self.cache_path.parent
         if not cache_dir.is_dir():
             cache_dir.mkdir(parents=True)
 
-        data = json.dumps(dict_managers, indent=2)
         self.cache_path.write_text(data)
