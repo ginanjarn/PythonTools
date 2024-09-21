@@ -17,7 +17,7 @@ from .constant import (
     LOGGING_CHANNEL,
     PACKAGE_NAME,
 )
-from .handler import BaseHandler, COMPLETION_KIND_MAP
+from .handler import BaseHandler, COMPLETION_KIND_MAP, input_text, open_location
 from .lsp_client import path_to_uri, uri_to_path
 from .sublime_settings import Settings
 from .workspace import (
@@ -527,7 +527,7 @@ class PyserverHandler(BaseHandler):
         elif result := params.get("result"):
             view = self.action_target_map[method].view
             locations = [self._build_location(l) for l in result]
-            self._open_locations(view, locations)
+            open_location(view, locations)
 
     @session.must_begin
     def textdocument_preparerename(self, view, row, col):
@@ -576,7 +576,7 @@ class PyserverHandler(BaseHandler):
                     {"row": row, "column": col, "new_name": new_name},
                 )
 
-        self._input_rename(old_name, request_rename)
+        input_text("rename", old_name, request_rename)
 
     def handle_textdocument_preparerename(self, params: dict):
         if error := params.get("error"):

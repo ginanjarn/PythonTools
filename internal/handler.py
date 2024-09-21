@@ -146,50 +146,6 @@ class BaseHandler(lsp_client.Handler):
                 self.client.run_server(env)
                 self.client.listen()
 
-    @staticmethod
-    def _open_locations(view: sublime.View, locations: List[PathEncodedStr]) -> None:
-        """"""
-        current_selections = tuple(view.sel())
-        current_visible_region = view.visible_region()
-
-        def set_selection(view, selections, visible_region):
-            view.window().focus_view(view)
-            view.sel().clear()
-            view.sel().add_all(selections)
-            view.show(visible_region, show_surrounds=False)
-
-        locations = sorted(locations)
-
-        def open_location(index):
-            if index < 0:
-                # canceled
-                set_selection(view, current_selections, current_visible_region)
-                return
-
-            workspace.open_document(locations[index])
-
-        def preview_location(index):
-            workspace.open_document(locations[index], preview=True)
-
-        sublime.active_window().show_quick_panel(
-            items=locations,
-            on_select=open_location,
-            flags=sublime.MONOSPACE_FONT,
-            on_highlight=preview_location,
-            placeholder="Open location...",
-        )
-
-    @staticmethod
-    def _input_rename(old_name: str, on_done_callback: Callable[[str], None]) -> None:
-        """"""
-        sublime.active_window().show_input_panel(
-            caption="rename",
-            initial_text=old_name,
-            on_done=on_done_callback,
-            on_change=None,
-            on_cancel=None,
-        )
-
     def is_ready(self) -> bool:
         raise NotImplementedError("is_ready")
 
@@ -222,3 +178,51 @@ class BaseHandler(lsp_client.Handler):
     def textdocument_rename(
         self, view: sublime.View, row: int, col: int, new_name: str
     ) -> None: ...
+
+
+def set_selection(view: sublime.View, regions: List[sublime.Region]):
+    """"""
+    view.sel().clear()
+    view.sel().add_all(regions)
+
+
+def open_location(current_view: sublime.View, locations: List[PathEncodedStr]) -> None:
+    """"""
+    current_selections = list(current_view.sel())
+    current_visible_region = current_view.visible_region()
+
+    locations = sorted(locations)
+
+    def open_location(index):
+        if index >= 0:
+            workspace.open_document(locations[index])
+            return
+
+        # else: revert to current state
+        current_view.window().focus_view(current_view)
+        set_selection(current_view, current_selections)
+        current_view.show(current_visible_region, show_surrounds=False)
+
+    def preview_location(index):
+        workspace.open_document(locations[index], preview=True)
+
+    sublime.active_window().show_quick_panel(
+        items=locations,
+        on_select=open_location,
+        flags=sublime.MONOSPACE_FONT,
+        on_highlight=preview_location,
+        placeholder="Open location...",
+    )
+
+
+def input_text(
+    title: str, default_text: str, on_done_callback: Callable[[str], None]
+) -> None:
+    """"""
+    sublime.active_window().show_input_panel(
+        caption=title,
+        initial_text=default_text,
+        on_done=on_done_callback,
+        on_change=None,
+        on_cancel=None,
+    )
