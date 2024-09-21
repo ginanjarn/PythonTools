@@ -1,4 +1,4 @@
-"""command and event baseclass"""
+"""plugin implementation"""
 
 import logging
 import threading
@@ -22,7 +22,7 @@ def initialize_server(handler: BaseHandler, view: sublime.View):
     handler.initialize(view)
 
 
-class BaseOpenEventListener:
+class OpenEventListener:
 
     def __init__(self, *args, **kwargs):
         self.handler: BaseHandler
@@ -69,7 +69,7 @@ class BaseOpenEventListener:
             self.handler.textdocument_didopen(view, reload=True)
 
 
-class BaseSaveEventListener:
+class SaveEventListener:
 
     def __init__(self, *args, **kwargs):
         self.handler: BaseHandler
@@ -84,7 +84,7 @@ class BaseSaveEventListener:
             self.handler.textdocument_didsave(view)
 
 
-class BaseCloseEventListener:
+class CloseEventListener:
 
     def __init__(self, *args, **kwargs):
         self.handler: BaseHandler
@@ -99,7 +99,7 @@ class BaseCloseEventListener:
             self.handler.textdocument_didclose(view)
 
 
-class BaseTextChangeListener:
+class TextChangeListener:
 
     def __init__(self, *args, **kwargs):
         self.buffer: sublime.Buffer
@@ -125,7 +125,7 @@ class BaseTextChangeListener:
         return TextChange(start, end, change.str, change.len_utf8)
 
 
-class BaseCompletionEventListener:
+class CompletionEventListener:
 
     def __init__(self, *args, **kwargs):
         self.handler: BaseHandler
@@ -182,7 +182,7 @@ class BaseCompletionEventListener:
         view.run_command(f"{COMMAND_PREFIX}_document_signature_help", {"point": point})
 
 
-class BaseHoverEventListener:
+class HoverEventListener:
 
     def __init__(self, *args, **kwargs):
         self.handler: BaseHandler
@@ -204,7 +204,7 @@ class BaseHoverEventListener:
         self.handler.textdocument_hover(view, row, col)
 
 
-class BaseDocumentSignatureHelpCommand:
+class DocumentSignatureHelpCommand:
 
     def __init__(self, *args, **kwargs):
         self.view: sublime.View
@@ -223,7 +223,7 @@ class BaseDocumentSignatureHelpCommand:
             self.handler.textdocument_signaturehelp(self.view, row, col)
 
 
-class BaseDocumentFormattingCommand:
+class DocumentFormattingCommand:
 
     def __init__(self, *args, **kwargs):
         self.view: sublime.View
@@ -234,7 +234,7 @@ class BaseDocumentFormattingCommand:
             self.handler.textdocument_formatting(self.view)
 
 
-class BaseGotoDefinitionCommand:
+class GotoDefinitionCommand:
 
     def __init__(self, *args, **kwargs):
         self.view: sublime.View
@@ -248,7 +248,7 @@ class BaseGotoDefinitionCommand:
             self.handler.textdocument_definition(self.view, start_row, start_col)
 
 
-class BasePrepareRenameCommand:
+class PrepareRenameCommand:
 
     def __init__(self, *args, **kwargs):
         self.view: sublime.View
@@ -266,7 +266,7 @@ class BasePrepareRenameCommand:
             self.handler.textdocument_preparerename(self.view, start_row, start_col)
 
 
-class BaseRenameCommand:
+class RenameCommand:
 
     def __init__(self, *args, **kwargs):
         self.view: sublime.View
@@ -289,7 +289,7 @@ class _BufferedTextChange:
         return sublime.Region(self.region.a + move, self.region.b + move)
 
 
-class BaseApplyTextChangesCommand:
+class ApplyTextChangesCommand:
     """changes item must serialized from 'TextChange'"""
 
     def __init__(self, *args, **kwargs):

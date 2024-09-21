@@ -8,19 +8,19 @@ import sublime_plugin
 from sublime import HoverZone
 
 from .internal.constant import LOGGING_CHANNEL
-from .internal.command_event_base import (
-    BaseOpenEventListener,
-    BaseSaveEventListener,
-    BaseCloseEventListener,
-    BaseHoverEventListener,
-    BaseCompletionEventListener,
-    BaseTextChangeListener,
-    BaseApplyTextChangesCommand,
-    BaseDocumentSignatureHelpCommand,
-    BaseDocumentFormattingCommand,
-    BaseGotoDefinitionCommand,
-    BasePrepareRenameCommand,
-    BaseRenameCommand,
+from .internal.plugin_implementation import (
+    OpenEventListener,
+    SaveEventListener,
+    CloseEventListener,
+    HoverEventListener,
+    CompletionEventListener,
+    TextChangeListener,
+    ApplyTextChangesCommand,
+    DocumentSignatureHelpCommand,
+    DocumentFormattingCommand,
+    GotoDefinitionCommand,
+    PrepareRenameCommand,
+    RenameCommand,
 )
 from .internal.handler import BaseHandler
 from .internal.pyserver_handler import get_handler
@@ -66,7 +66,7 @@ def plugin_unloaded():
         HANDLER.terminate()
 
 
-class PythontoolsOpenEventListener(sublime_plugin.EventListener, BaseOpenEventListener):
+class PythontoolsOpenEventListener(sublime_plugin.EventListener, OpenEventListener):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -85,7 +85,7 @@ class PythontoolsOpenEventListener(sublime_plugin.EventListener, BaseOpenEventLi
         self._on_revert(view)
 
 
-class PythontoolsSaveEventListener(sublime_plugin.EventListener, BaseSaveEventListener):
+class PythontoolsSaveEventListener(sublime_plugin.EventListener, SaveEventListener):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -95,9 +95,7 @@ class PythontoolsSaveEventListener(sublime_plugin.EventListener, BaseSaveEventLi
         self._on_post_save_async(view)
 
 
-class PythontoolsCloseEventListener(
-    sublime_plugin.EventListener, BaseCloseEventListener
-):
+class PythontoolsCloseEventListener(sublime_plugin.EventListener, CloseEventListener):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -108,7 +106,7 @@ class PythontoolsCloseEventListener(
 
 
 class PythontoolsTextChangeListener(
-    sublime_plugin.TextChangeListener, BaseTextChangeListener
+    sublime_plugin.TextChangeListener, TextChangeListener
 ):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -119,7 +117,7 @@ class PythontoolsTextChangeListener(
 
 
 class PythontoolsCompletionEventListener(
-    sublime_plugin.EventListener, BaseCompletionEventListener
+    sublime_plugin.EventListener, CompletionEventListener
 ):
 
     def __init__(self, *args, **kwargs):
@@ -132,9 +130,7 @@ class PythontoolsCompletionEventListener(
         return self._on_query_completions(view, prefix, locations)
 
 
-class PythontoolsHoverEventListener(
-    sublime_plugin.EventListener, BaseHoverEventListener
-):
+class PythontoolsHoverEventListener(sublime_plugin.EventListener, HoverEventListener):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.handler = HANDLER
@@ -144,7 +140,7 @@ class PythontoolsHoverEventListener(
 
 
 class PythontoolsDocumentSignatureHelpCommand(
-    sublime_plugin.TextCommand, BaseDocumentSignatureHelpCommand
+    sublime_plugin.TextCommand, DocumentSignatureHelpCommand
 ):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -158,7 +154,7 @@ class PythontoolsDocumentSignatureHelpCommand(
 
 
 class PythontoolsDocumentFormattingCommand(
-    sublime_plugin.TextCommand, BaseDocumentFormattingCommand
+    sublime_plugin.TextCommand, DocumentFormattingCommand
 ):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -172,7 +168,7 @@ class PythontoolsDocumentFormattingCommand(
 
 
 class PythontoolsGotoDefinitionCommand(
-    sublime_plugin.TextCommand, BaseGotoDefinitionCommand
+    sublime_plugin.TextCommand, GotoDefinitionCommand
 ):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -188,9 +184,7 @@ class PythontoolsGotoDefinitionCommand(
         return True
 
 
-class PythontoolsPrepareRenameCommand(
-    sublime_plugin.TextCommand, BasePrepareRenameCommand
-):
+class PythontoolsPrepareRenameCommand(sublime_plugin.TextCommand, PrepareRenameCommand):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -206,7 +200,7 @@ class PythontoolsPrepareRenameCommand(
         return True
 
 
-class PythontoolsRenameCommand(sublime_plugin.TextCommand, BaseRenameCommand):
+class PythontoolsRenameCommand(sublime_plugin.TextCommand, RenameCommand):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -220,7 +214,7 @@ class PythontoolsRenameCommand(sublime_plugin.TextCommand, BaseRenameCommand):
 
 
 class PythontoolsApplyTextChangesCommand(
-    sublime_plugin.TextCommand, BaseApplyTextChangesCommand
+    sublime_plugin.TextCommand, ApplyTextChangesCommand
 ):
     """changes item must serialized from 'TextChange'"""
 
