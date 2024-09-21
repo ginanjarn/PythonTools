@@ -4,7 +4,6 @@ import logging
 import threading
 
 from functools import wraps
-from io import StringIO
 from pathlib import Path
 from typing import Optional, Dict, List, Any
 
@@ -17,7 +16,13 @@ from .constant import (
     LOGGING_CHANNEL,
     PACKAGE_NAME,
 )
-from .handler import BaseHandler, COMPLETION_KIND_MAP, input_text, open_location
+from .handler import (
+    BaseHandler,
+    DiagnosticPanel,
+    COMPLETION_KIND_MAP,
+    input_text,
+    open_location,
+)
 from .lsp_client import path_to_uri, uri_to_path
 from .sublime_settings import Settings
 from .workspace import (
@@ -211,7 +216,7 @@ class PyserverHandler(BaseHandler):
                 return
 
             self.workspace.remove_invalid_diagnostic()
-            self._show_diagnostic_report()
+            DiagnosticReporter(self.workspace, self.diagnostics_panel).show_report()
 
             self.client.send_notification(
                 "textDocument/didClose",
@@ -352,35 +357,6 @@ class PyserverHandler(BaseHandler):
             self.action_target_map[method].show_popup(message, row, col)
 
     @staticmethod
-    def _build_diagnostic_message(diagnostics_map: Dict[PathStr, Any]) -> str:
-
-        def build_line(file_name, diagnostic):
-            short_name = Path(file_name).name
-            row = diagnostic["range"]["start"]["line"]
-            col = diagnostic["range"]["start"]["character"]
-            message = diagnostic["message"]
-            source = diagnostic.get("source", "")
-
-            # natural line index start with 1
-            row += 1
-
-            return f"{short_name}:{row}:{col}: {message} ({source})\n"
-
-        message_buffer = StringIO()
-        for file_name, diagnostics in diagnostics_map.items():
-            message = "".join([build_line(file_name, d) for d in diagnostics])
-            message_buffer.write(message)
-
-        return message_buffer.getvalue()
-
-    def _show_diagnostic_report(self):
-        diagnostic_map = self.workspace.get_diagnostics()
-        diagnostic_text = self._build_diagnostic_message(diagnostic_map)
-
-        self.diagnostics_panel.set_content(diagnostic_text)
-        self.diagnostics_panel.show()
-
-    @staticmethod
     def _get_diagnostic_region(view: sublime.View, diagnostic: dict) -> sublime.Region:
 
         start = diagnostic["range"]["start"]
@@ -395,7 +371,7 @@ class PyserverHandler(BaseHandler):
         diagnostics = params["diagnostics"]
 
         self.workspace.set_diagnostic(file_name, diagnostics)
-        self._show_diagnostic_report()
+        DiagnosticReporter(self.workspace, self.diagnostics_panel).show_report()
 
         for document in self.workspace.get_documents(file_name):
             regions = [
@@ -542,6 +518,45 @@ class PyserverHandler(BaseHandler):
             print(error["message"])
         elif result := params.get("result"):
             WorkspaceEdit(self.workspace).apply(result)
+
+
+class DiagnosticReporter:
+    def __init__(
+        self, workspace_: workspace.Workspace, diagnostics_panel: DiagnosticPanel
+    ):
+        self.workspace = workspace_
+        self.diagnostics_panel = diagnostics_panel
+
+    def show_report(self):
+        """"""
+        diagnostic_map = self.workspace.get_diagnostics()
+        report_text = self._build_report(diagnostic_map)
+
+        self.diagnostics_panel.set_content(report_text)
+        self.diagnostics_panel.show()
+
+    def _build_report(self, diagnostics_map: Dict[PathStr, Any]) -> str:
+        reports = []
+
+        # build report for each file
+        for file_name, diagnostics in diagnostics_map.items():
+            lines = [self.build_line(file_name, d) for d in diagnostics]
+            reports.extend(lines)
+
+        return "\n".join(reports)
+
+    @staticmethod
+    def build_line(file_name: PathStr, diagnostic: dict) -> str:
+        short_name = Path(file_name).name
+        row = diagnostic["range"]["start"]["line"]
+        col = diagnostic["range"]["start"]["character"]
+        message = diagnostic["message"]
+        source = diagnostic.get("source", "")
+
+        # natural line index start with 1
+        row += 1
+
+        return f"{short_name}:{row}:{col}: {message} ({source})"
 
 
 class WorkspaceEdit:
