@@ -26,7 +26,7 @@ def get_workspace_path(view: sublime.View) -> str:
     return str(Path(file_name).parent)
 
 
-class PythontoolsSetEnvironmentCommand(sublime_plugin.WindowCommand):
+class PythonToolsSetEnvironmentCommand(sublime_plugin.WindowCommand):
     """"""
 
     def run(self, scan: bool = False):

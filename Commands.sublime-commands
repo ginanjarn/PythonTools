@@ -1,11 +1,11 @@
 [
 	{
 		"caption": "Python: Set Environment",
-		"command": "pythontools_set_environment"
+		"command": "python_tools_set_environment"
 	},
 	{
 		"caption": "Python: Terminate server",
-		"command": "pythontools_terminate"
+		"command": "python_tools_terminate"
 	},
 	{
 		"args":
@@ -17,18 +17,18 @@
 	},
 	{
 		"caption" : "Format Code",
-		"command" : "pythontools_document_formatting",
+		"command" : "python_tools_document_formatting",
 	},
 	{
 		"caption" : "Show Definition",
-		"command" : "pythontools_goto_definition",
+		"command" : "python_tools_goto_definition",
 	},
 	{
 		"caption" : "Code Action",
-		"command" : "pythontools_code_action",
+		"command" : "python_tools_code_action",
 	},
 	{
 		"caption" : "Rename symbol...",
-		"command" : "pythontools_prepare_rename",
+		"command" : "python_tools_prepare_rename",
 	}
 ]

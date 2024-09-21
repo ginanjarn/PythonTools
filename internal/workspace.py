@@ -17,6 +17,7 @@ from .constant import (
     PACKAGE_NAME,
     LANGUAGE_ID,
     VIEW_SELECTOR,
+    COMMAND_PREFIX
 )
 
 PathStr = str
@@ -187,9 +188,8 @@ class BufferedDocument:
         self.view.run_command("hide_auto_complete")
 
     def apply_text_changes(self, changes: List[TextChange]):
-        prefix = PACKAGE_NAME.lower()
         self.view.run_command(
-            f"{prefix}_apply_text_changes",
+            f"{COMMAND_PREFIX}_apply_text_changes",
             {
                 "changes": [asdict(c) for c in changes],
             },

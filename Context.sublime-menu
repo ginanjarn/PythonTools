@@ -1,28 +1,28 @@
 [
 	{
 		"caption": "Format Code",
-		"command": "pythontools_document_formatting",
-		"id": "pythontools",
+		"command": "python_tools_document_formatting",
+		"id": "python_tools",
 		"mnemonic": "F"
 	},
 	{
 		"caption": "-",
-		"id": "pythontools"
+		"id": "python_tools"
 	},
 	{
 		"caption": "Show Definition",
-		"command": "pythontools_goto_definition",
-		"id": "pythontools",
+		"command": "python_tools_goto_definition",
+		"id": "python_tools",
 		"mnemonic": "i"
 	},
 	{
 		"caption": "-",
-		"id": "pythontools"
+		"id": "python_tools"
 	},
 	{
 		"caption": "Rename symbol...",
-		"command": "pythontools_prepare_rename",
-		"id": "pythontools",
+		"command": "python_tools_prepare_rename",
+		"id": "python_tools",
 		"mnemonic": "R"
 	}
 ]

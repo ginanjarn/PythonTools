@@ -7,4 +7,4 @@ LOGGING_CHANNEL = PACKAGE_NAME
 # Sublime Text constants
 VIEW_SELECTOR = "source.python"
 SETTINGS_BASENAME = "Python.sublime-settings"
-COMMAND_PREFIX = PACKAGE_NAME.lower()
+COMMAND_PREFIX = "python_tools"
