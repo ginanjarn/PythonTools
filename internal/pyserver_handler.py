@@ -435,57 +435,10 @@ class PyserverHandler(BaseHandler):
             changes = [self._get_text_change(c) for c in result]
             self.action_target_map[method].apply_text_changes(changes)
 
-    @staticmethod
-    def _create_document(document_changes: dict):
-        file_name = uri_to_path(document_changes["uri"])
-        workspace.create_document(file_name)
-
-    @staticmethod
-    def _rename_document(document_changes: dict):
-        old_name = uri_to_path(document_changes["oldUri"])
-        new_name = uri_to_path(document_changes["newUri"])
-        workspace.rename_document(old_name, new_name)
-
-    @staticmethod
-    def _delete_document(document_changes: dict):
-        file_name = uri_to_path(document_changes["uri"])
-        workspace.delete_document(file_name)
-
-    def _apply_resource_changes(self, document_changes: dict):
-        func = {
-            "create": self._create_document,
-            "rename": self._rename_document,
-            "delete": self._delete_document,
-        }
-        kind = document_changes.get("kind")
-        func[kind](document_changes)
-
-    def _apply_textedit_changes(self, document_changes: dict):
-        file_name = uri_to_path(document_changes["textDocument"]["uri"])
-        edits = document_changes["edits"]
-        changes = [self._get_text_change(c) for c in edits]
-
-        document = self.workspace.get_document_by_name(
-            file_name, UnbufferedDocument(file_name)
-        )
-        document.apply_text_changes(changes)
-        document.save()
-
-    def _apply_edit(self, edit: dict):
-        for document_changes in edit["documentChanges"]:
-            # documentChanges: TextEdit|CreateFile|RenameFile|DeleteFile
-
-            # File Resource Changes
-            if document_changes.get("kind"):
-                self._apply_resource_changes(document_changes)
-                return
-
-            # TextEdit Changes
-            self._apply_textedit_changes(document_changes)
-
     def handle_workspace_applyedit(self, params: dict) -> dict:
         try:
-            self._apply_edit(params["edit"])
+            WorkspaceEdit(self.workspace).apply(params["edit"])
+
         except Exception as err:
             LOGGER.error(err, exc_info=True)
             return {"applied": False}
@@ -588,7 +541,75 @@ class PyserverHandler(BaseHandler):
         if error := params.get("error"):
             print(error["message"])
         elif result := params.get("result"):
-            self._apply_edit(result)
+            WorkspaceEdit(self.workspace).apply(result)
+
+
+class WorkspaceEdit:
+
+    def __init__(self, workspace_: workspace.Workspace):
+        self.workspace = workspace_
+
+    def apply(self, edit_changes: dict) -> None:
+        """"""
+
+        for document_changes in edit_changes["documentChanges"]:
+            # documentChanges: TextEdit|CreateFile|RenameFile|DeleteFile
+
+            # File Resource Changes
+            if document_changes.get("kind"):
+                self._apply_resource_changes(document_changes)
+                return
+
+            # TextEdit Changes
+            self._apply_textedit_changes(document_changes)
+
+    def _apply_textedit_changes(self, document_changes: dict):
+        file_name = uri_to_path(document_changes["textDocument"]["uri"])
+        edits = document_changes["edits"]
+        changes = [self._get_text_change(c) for c in edits]
+
+        document = self.workspace.get_document_by_name(
+            file_name, UnbufferedDocument(file_name)
+        )
+        document.apply_text_changes(changes)
+        document.save()
+
+    @staticmethod
+    def _get_text_change(change: dict) -> TextChange:
+        start = change["range"]["start"]
+        end = change["range"]["end"]
+        text = change["newText"]
+
+        return TextChange(
+            (start["line"], start["character"]),
+            (end["line"], end["character"]),
+            text,
+        )
+
+    def _apply_resource_changes(self, changes: dict):
+        func = {
+            "create": self._create_document,
+            "rename": self._rename_document,
+            "delete": self._delete_document,
+        }
+        kind = changes["kind"]
+        func[kind](changes)
+
+    @staticmethod
+    def _create_document(document_changes: dict):
+        file_name = uri_to_path(document_changes["uri"])
+        workspace.create_document(file_name)
+
+    @staticmethod
+    def _rename_document(document_changes: dict):
+        old_name = uri_to_path(document_changes["oldUri"])
+        new_name = uri_to_path(document_changes["newUri"])
+        workspace.rename_document(old_name, new_name)
+
+    @staticmethod
+    def _delete_document(document_changes: dict):
+        file_name = uri_to_path(document_changes["uri"])
+        workspace.delete_document(file_name)
 
 
 def get_handler() -> BaseHandler:
