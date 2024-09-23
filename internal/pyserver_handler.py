@@ -10,7 +10,6 @@ from typing import Optional, Dict, List, Any
 import sublime
 
 from . import lsp_client
-from . import workspace
 from .constant import (
     COMMAND_PREFIX,
     LOGGING_CHANNEL,
@@ -25,12 +24,16 @@ from .handler import (
 )
 from .sublime_settings import Settings
 from .workspace import (
+    Workspace,
     BufferedDocument,
     UnbufferedDocument,
     TextChange,
     get_workspace_path,
     path_to_uri,
     uri_to_path,
+    create_document,
+    rename_document,
+    delete_document,
 )
 
 PathStr = str
@@ -526,9 +529,7 @@ class PyserverHandler(BaseHandler):
 
 
 class DiagnosticReporter:
-    def __init__(
-        self, workspace_: workspace.Workspace, diagnostics_panel: DiagnosticPanel
-    ):
+    def __init__(self, workspace_: Workspace, diagnostics_panel: DiagnosticPanel):
         self.workspace = workspace_
         self.diagnostics_panel = diagnostics_panel
 
@@ -566,7 +567,7 @@ class DiagnosticReporter:
 
 class WorkspaceEdit:
 
-    def __init__(self, workspace_: workspace.Workspace):
+    def __init__(self, workspace_: Workspace):
         self.workspace = workspace_
 
     def apply(self, edit_changes: dict) -> None:
@@ -620,18 +621,18 @@ class WorkspaceEdit:
     @staticmethod
     def _create_document(document_changes: dict):
         file_name = uri_to_path(document_changes["uri"])
-        workspace.create_document(file_name)
+        create_document(file_name)
 
     @staticmethod
     def _rename_document(document_changes: dict):
         old_name = uri_to_path(document_changes["oldUri"])
         new_name = uri_to_path(document_changes["newUri"])
-        workspace.rename_document(old_name, new_name)
+        rename_document(old_name, new_name)
 
     @staticmethod
     def _delete_document(document_changes: dict):
         file_name = uri_to_path(document_changes["uri"])
-        workspace.delete_document(file_name)
+        delete_document(file_name)
 
 
 def get_handler() -> BaseHandler:

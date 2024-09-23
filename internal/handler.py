@@ -6,15 +6,16 @@ from typing import Optional, List, Dict, Callable, Any
 
 import sublime
 
-from . import errors
 from . import lsp_client
-from . import workspace
+
 from .constant import PACKAGE_NAME
+from .errors import MethodNotFound
 from .workspace import (
     BufferedDocument,
     Workspace,
     TextChange,
     TextHighlighter,
+    open_document,
 )
 
 PathStr = str
@@ -124,7 +125,7 @@ class BaseHandler(lsp_client.Handler):
         try:
             func = self.handler_map[method]
         except (KeyError, AttributeError) as err:
-            raise errors.MethodNotFound(err)
+            raise MethodNotFound(err)
 
         return func(params)
 
@@ -195,7 +196,7 @@ def open_location(current_view: sublime.View, locations: List[PathEncodedStr]) -
 
     def open_location(index):
         if index >= 0:
-            workspace.open_document(locations[index])
+            open_document(locations[index])
             return
 
         # else: revert to current state
@@ -204,7 +205,7 @@ def open_location(current_view: sublime.View, locations: List[PathEncodedStr]) -
         current_view.show(current_visible_region, show_surrounds=False)
 
     def preview_location(index):
-        workspace.open_document(locations[index], preview=True)
+        open_document(locations[index], preview=True)
 
     sublime.active_window().show_quick_panel(
         items=locations,
