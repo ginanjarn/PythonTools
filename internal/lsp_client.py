@@ -12,27 +12,12 @@ from abc import ABC, abstractmethod
 from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
-from urllib.parse import unquote, urlparse
-from urllib.request import url2pathname
 from typing import Optional, Union, List
 
 from . import errors
 from .constant import LOGGING_CHANNEL
 
-URI = str
-_PathLikeStr = str
-
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
-
-
-def path_to_uri(path: _PathLikeStr) -> URI:
-    """convert path to uri"""
-    return Path(path).as_uri()
-
-
-def uri_to_path(uri: URI) -> _PathLikeStr:
-    """convert uri to path"""
-    return url2pathname(unquote(urlparse(uri).path))
 
 
 class Handler(ABC):

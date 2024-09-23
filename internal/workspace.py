@@ -6,9 +6,11 @@ import threading
 import time
 from collections import namedtuple
 from dataclasses import dataclass, asdict
-from functools import wraps
+from functools import wraps, lru_cache
 from pathlib import Path
 from typing import Dict, List, Any, Optional
+from urllib.parse import quote, unquote, urlparse, urlunparse
+from urllib.request import pathname2url, url2pathname
 
 import sublime
 
@@ -17,12 +19,29 @@ from .constant import (
     PACKAGE_NAME,
     LANGUAGE_ID,
     VIEW_SELECTOR,
-    COMMAND_PREFIX
+    COMMAND_PREFIX,
 )
 
 PathStr = str
+DocumentURI = str
 RowColIndex = namedtuple("RowColIndex", ["row", "column"])
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
+
+
+@lru_cache(128)
+def path_to_uri(path: PathStr) -> DocumentURI:
+    """convert path to uri"""
+    return urlunparse(("file", "", quote(pathname2url(str(path))), "", "", ""))
+
+
+@lru_cache(128)
+def uri_to_path(uri: DocumentURI) -> PathStr:
+    """convert uri to path"""
+    parsed = urlparse(uri)
+    if parsed.scheme != "file":
+        raise ValueError("url scheme must be 'file'")
+
+    return url2pathname(unquote(parsed.path))
 
 
 @dataclass
