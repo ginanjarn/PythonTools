@@ -46,12 +46,23 @@ def uri_to_path(uri: DocumentURI) -> PathStr:
 
 @dataclass
 class TextChange:
-    """TextChange used to intermediate 'TextCommand' argument"""
+    """TextChange
+
+    Properties:
+        start: RowColIndex
+            start of change index
+        end: RowColIndex
+            end of change index
+        text: str
+            new text
+        length: int
+            length of changed text
+    """
 
     start: RowColIndex
     end: RowColIndex
     text: str
-    length: int = -1
+    length: int
 
     def __post_init__(self):
         # possibly if user pass 'start' and 'end' as tuple

@@ -386,9 +386,13 @@ class PyserverHandler(BaseHandler):
         start = change["range"]["start"]
         end = change["range"]["end"]
         text = change["newText"]
+        length = change["rangeLength"]
 
         return TextChange(
-            (start["line"], start["character"]), (end["line"], end["character"]), text
+            (start["line"], start["character"]),
+            (end["line"], end["character"]),
+            text,
+            length,
         )
 
     @session.must_begin
@@ -595,11 +599,13 @@ class WorkspaceEdit:
         start = change["range"]["start"]
         end = change["range"]["end"]
         text = change["newText"]
+        length = change["rangeLength"]
 
         return TextChange(
             (start["line"], start["character"]),
             (end["line"], end["character"]),
             text,
+            length,
         )
 
     def _apply_resource_changes(self, changes: dict):
