@@ -9,8 +9,8 @@ from dataclasses import dataclass, asdict
 from functools import wraps, lru_cache
 from pathlib import Path
 from typing import Dict, List, Any, Optional
-from urllib.parse import quote, unquote, urlparse, urlunparse
-from urllib.request import pathname2url, url2pathname
+from urllib.parse import urlparse, unquote_plus
+from urllib.request import url2pathname
 
 import sublime
 
@@ -31,7 +31,7 @@ LOGGER = logging.getLogger(LOGGING_CHANNEL)
 @lru_cache(128)
 def path_to_uri(path: PathStr) -> DocumentURI:
     """convert path to uri"""
-    return urlunparse(("file", "", quote(pathname2url(str(path))), "", "", ""))
+    return Path(path).as_uri()
 
 
 @lru_cache(128)
@@ -41,7 +41,7 @@ def uri_to_path(uri: DocumentURI) -> PathStr:
     if parsed.scheme != "file":
         raise ValueError("url scheme must be 'file'")
 
-    return url2pathname(unquote(parsed.path))
+    return url2pathname(unquote_plus(parsed.path))
 
 
 @dataclass
