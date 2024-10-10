@@ -119,7 +119,7 @@ class BaseHandler(lsp_client.Handler):
 
     def _reset_state(self) -> None:
         self._initializing = False
-        self.workspace = Workspace()
+        self.workspace.reset()
 
         self.diagnostics_panel.destroy()
         TextHighlighter.clear_all()

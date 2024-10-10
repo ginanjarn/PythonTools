@@ -250,6 +250,13 @@ class Workspace:
         return wrapper1
 
     @lock(document_lock)
+    @lock(diagnostic_lock)
+    def reset(self):
+        """"""
+        self.documents.clear()
+        self.diagnostics.clear()
+
+    @lock(document_lock)
     def get_document(
         self, view: sublime.View, /, default: Any = None
     ) -> Optional[BufferedDocument]:
