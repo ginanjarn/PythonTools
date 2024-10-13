@@ -223,7 +223,7 @@ class PyserverHandler(BaseHandler):
 
             self.diagnostic_manager.remove(file_name)
             DiagnosticReporter(
-                self.diagnostic_manager.get_all(), self.diagnostics_panel
+                self.diagnostic_manager.get_all(), self.diagnostic_panel
             ).show_report()
 
             self.client.send_notification(
@@ -378,9 +378,9 @@ class PyserverHandler(BaseHandler):
         file_name = uri_to_path(params["uri"])
         diagnostics = params["diagnostics"]
 
-        self.diagnostic_manager.set(file_name, diagnostics)
+        self.diagnostic_manager.add(file_name, diagnostics)
         DiagnosticReporter(
-            self.diagnostic_manager.get_all(), self.diagnostics_panel
+            self.diagnostic_manager.get_all(), self.diagnostic_panel
         ).show_report()
 
         for document in self.workspace.get_documents(file_name):
@@ -554,7 +554,7 @@ class DiagnosticManager:
             except KeyError:
                 return None
 
-    def set(self, file_name: PathStr, diagnostics: dict):
+    def add(self, file_name: PathStr, diagnostics: dict):
         with self._lock:
             self.diagnostics[file_name] = diagnostics
 
@@ -568,17 +568,17 @@ class DiagnosticManager:
 
 class DiagnosticReporter:
     def __init__(
-        self, diagnostic_map: Dict[PathStr, dict], diagnostics_panel: DiagnosticPanel
+        self, diagnostic_map: Dict[PathStr, dict], diagnostic_panel: DiagnosticPanel
     ):
         self.diagnostic_map = diagnostic_map
-        self.diagnostics_panel = diagnostics_panel
+        self.diagnostic_panel = diagnostic_panel
 
     def show_report(self):
         """"""
         report_text = self._build_report(self.diagnostic_map)
 
-        self.diagnostics_panel.set_content(report_text)
-        self.diagnostics_panel.show()
+        self.diagnostic_panel.set_content(report_text)
+        self.diagnostic_panel.show()
 
     def _build_report(self, diagnostics_map: Dict[PathStr, Any]) -> str:
         reports = []
