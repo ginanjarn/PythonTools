@@ -186,7 +186,6 @@ class HoverEventListener:
 
     def __init__(self, *args, **kwargs):
         self.handler: BaseHandler
-        self.prev_completion_point = 0
 
     def _on_hover(self, view: sublime.View, point: int, hover_zone: HoverZone):
         # check point in valid source
@@ -206,6 +205,8 @@ class HoverEventListener:
 
 class DocumentSignatureHelpCommand:
 
+    prev_trigger_word = sublime.Region(0)
+
     def __init__(self, *args, **kwargs):
         self.view: sublime.View
         self.handler: BaseHandler
@@ -213,7 +214,10 @@ class DocumentSignatureHelpCommand:
     def _run(self, edit: sublime.Edit, point: int):
         if self.handler.is_ready():
             # Some times server response signaturehelp after cursor moved.
-            self.view.hide_popup()
+            if not self.prev_trigger_word.contains(point):
+                self.view.hide_popup()
+
+            self.prev_trigger_word = self.view.word(point)
 
             # Only request signature on function arguments
             if not self.view.match_selector(point, "meta.function-call.arguments"):
