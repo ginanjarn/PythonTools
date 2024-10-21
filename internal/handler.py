@@ -10,14 +10,9 @@ import sublime
 from . import lsp_client
 
 from .constant import PACKAGE_NAME, COMMAND_PREFIX
+from .document import BufferedDocument, TextChange, TextHighlighter
 from .errors import MethodNotFound
-from .workspace import (
-    BufferedDocument,
-    Workspace,
-    TextChange,
-    TextHighlighter,
-    open_document,
-)
+from .workspace import Workspace, open_document
 
 PathStr = str
 PathEncodedStr = str

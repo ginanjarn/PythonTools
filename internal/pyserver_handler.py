@@ -15,6 +15,13 @@ from .constant import (
     LOGGING_CHANNEL,
     PACKAGE_NAME,
 )
+from .document import (
+    BufferedDocument,
+    UnbufferedDocument,
+    TextChange,
+    path_to_uri,
+    uri_to_path,
+)
 from .handler import (
     BaseHandler,
     DiagnosticPanel,
@@ -25,12 +32,7 @@ from .handler import (
 from .sublime_settings import Settings
 from .workspace import (
     Workspace,
-    BufferedDocument,
-    UnbufferedDocument,
-    TextChange,
     get_workspace_path,
-    path_to_uri,
-    uri_to_path,
     create_document,
     rename_document,
     delete_document,

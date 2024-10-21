@@ -7,10 +7,10 @@ from typing import List, Optional
 import sublime
 from sublime import HoverZone
 
-from .handler import BaseHandler
 from .constant import LOGGING_CHANNEL, COMMAND_PREFIX
+from .document import TextChange, is_valid_document
+from .handler import BaseHandler
 from .pyserver_handler import get_envs_settings
-from .workspace import TextChange, is_valid_document
 
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
 
