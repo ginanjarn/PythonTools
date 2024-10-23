@@ -241,12 +241,28 @@ class GotoDefinitionCommand:
         self.view: sublime.View
         self.handler: BaseHandler
 
-    def _run(self, edit: sublime.Edit, event: Optional[dict] = None):
-        cursor = self.view.sel()[0]
-        point = event["text_point"] if event else cursor.a
+    def _run(
+        self,
+        edit: sublime.Edit,
+        row: int = -1,
+        column: int = -1,
+        event: Optional[dict] = None,
+    ):
+
+        if event:
+            # call from context menu
+            row, column = self.view.rowcol(event["text_point"])
+        elif row > -1:
+            # call from 'view.run_command()'
+            # interface use 1-based index
+            row -= 1
+            column = 0 if column < 0 else column - 1
+
+        else:
+            row, column = self.view.rowcol(self.view.sel()[0].a)
+
         if self.handler.is_ready():
-            start_row, start_col = self.view.rowcol(point)
-            self.handler.textdocument_definition(self.view, start_row, start_col)
+            self.handler.textdocument_definition(self.view, row, column)
 
 
 class PrepareRenameCommand:

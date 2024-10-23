@@ -174,8 +174,14 @@ class PythonToolsGotoDefinitionCommand(
         super().__init__(*args, **kwargs)
         self.handler = HANDLER
 
-    def run(self, edit: sublime.Edit, event: Optional[dict] = None):
-        self._run(edit, event)
+    def run(
+        self,
+        edit: sublime.Edit,
+        row: int = -1,
+        column: int = -1,
+        event: Optional[dict] = None,
+    ):
+        self._run(edit, row, column, event)
 
     def is_visible(self):
         return is_valid_document(self.view)
