@@ -266,6 +266,20 @@ class PyserverHandler(BaseHandler):
                 },
             )
 
+    def _get_diagnostic_message(self, view: sublime.View, row: int, col: int):
+        point = view.text_point(row, col)
+
+        def contain_point(item: DiagnosticItem):
+            return item.region.contains(point)
+
+        diagnostics = self.diagnostic_manager.get_active_view_diagnostics(contain_point)
+        if not diagnostics:
+            return ""
+
+        title = "### Diagnostics:\n"
+        diagnostic_message = "\n".join([f"- {d.message}" for d in diagnostics])
+        return f"{title}\n{diagnostic_message}"
+
     @session.must_begin
     def textdocument_hover(self, view, row, col):
         method = "textDocument/hover"
@@ -275,6 +289,10 @@ class PyserverHandler(BaseHandler):
             other.view.hide_popup()
 
         if document := self.workspace.get_document(view):
+            if message := self._get_diagnostic_message(view, row, col):
+                document.show_popup(message, row, col)
+                return
+
             self.client.send_request(
                 method,
                 {
