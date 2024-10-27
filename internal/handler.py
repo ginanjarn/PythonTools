@@ -10,7 +10,7 @@ import sublime
 from . import lsp_client
 
 from .constant import PACKAGE_NAME, COMMAND_PREFIX
-from .document import BufferedDocument, TextChange, TextHighlighter
+from .document import BufferedDocument, TextChange
 from .errors import MethodNotFound
 from .workspace import Workspace, open_document
 
@@ -106,15 +106,11 @@ class BaseHandler(lsp_client.Handler):
         self._initializing = False
         self.workspace = Workspace()
 
-        self.diagnostic_panel = DiagnosticPanel()
         self.run_server_lock = threading.Lock()
 
     def _reset_state(self) -> None:
         self._initializing = False
         self.workspace.reset()
-
-        self.diagnostic_panel.destroy()
-        TextHighlighter.clear_all()
 
         self.action_target_map.clear()
         self.session.done()
