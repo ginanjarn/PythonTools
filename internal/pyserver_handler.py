@@ -293,6 +293,7 @@ class PyserverHandler(BaseHandler):
                 document.show_popup(message, row, col)
                 return
 
+            self.action_target_map[method] = document
             self.client.send_request(
                 method,
                 {
@@ -300,7 +301,6 @@ class PyserverHandler(BaseHandler):
                     "textDocument": {"uri": path_to_uri(document.file_name)},
                 },
             )
-            self.action_target_map[method] = document
 
     def handle_textdocument_hover(self, params: dict):
         method = "textDocument/hover"
@@ -317,6 +317,7 @@ class PyserverHandler(BaseHandler):
     def textdocument_completion(self, view, row, col):
         method = "textDocument/completion"
         if document := self.workspace.get_document(view):
+            self.action_target_map[method] = document
             self.client.send_request(
                 method,
                 {
@@ -324,7 +325,6 @@ class PyserverHandler(BaseHandler):
                     "textDocument": {"uri": path_to_uri(document.file_name)},
                 },
             )
-            self.action_target_map[method] = document
 
     @staticmethod
     def _build_completion(completion_item: dict) -> sublime.CompletionItem:
@@ -357,6 +357,7 @@ class PyserverHandler(BaseHandler):
     def textdocument_signaturehelp(self, view, row, col):
         method = "textDocument/signatureHelp"
         if document := self.workspace.get_document(view):
+            self.action_target_map[method] = document
             self.client.send_request(
                 method,
                 {
@@ -364,7 +365,6 @@ class PyserverHandler(BaseHandler):
                     "textDocument": {"uri": path_to_uri(document.file_name)},
                 },
             )
-            self.action_target_map[method] = document
 
     def handle_textdocument_signaturehelp(self, params: dict):
         method = "textDocument/signatureHelp"
@@ -412,6 +412,7 @@ class PyserverHandler(BaseHandler):
     def textdocument_formatting(self, view):
         method = "textDocument/formatting"
         if document := self.workspace.get_document(view):
+            self.action_target_map[method] = document
             self.client.send_request(
                 method,
                 {
@@ -419,7 +420,6 @@ class PyserverHandler(BaseHandler):
                     "textDocument": {"uri": path_to_uri(document.file_name)},
                 },
             )
-            self.action_target_map[method] = document
 
     def handle_textdocument_formatting(self, params: dict):
         method = "textDocument/formatting"
@@ -451,6 +451,7 @@ class PyserverHandler(BaseHandler):
     def textdocument_definition(self, view, row, col):
         method = "textDocument/definition"
         if document := self.workspace.get_document(view):
+            self.action_target_map[method] = document
             self.client.send_request(
                 method,
                 {
@@ -458,7 +459,6 @@ class PyserverHandler(BaseHandler):
                     "textDocument": {"uri": path_to_uri(document.file_name)},
                 },
             )
-            self.action_target_map[method] = document
 
     @staticmethod
     def _build_location(location: dict) -> PathEncodedStr:
@@ -480,6 +480,7 @@ class PyserverHandler(BaseHandler):
     def textdocument_preparerename(self, view, row, col):
         method = "textDocument/prepareRename"
         if document := self.workspace.get_document(view):
+            self.action_target_map[method] = document
             self.client.send_request(
                 method,
                 {
@@ -487,12 +488,12 @@ class PyserverHandler(BaseHandler):
                     "textDocument": {"uri": path_to_uri(document.file_name)},
                 },
             )
-            self.action_target_map[method] = document
 
     @session.must_begin
     def textdocument_rename(self, view, row, col, new_name):
         method = "textDocument/rename"
         if document := self.workspace.get_document(view):
+            self.action_target_map[method] = document
             self.client.send_request(
                 method,
                 {
@@ -501,7 +502,6 @@ class PyserverHandler(BaseHandler):
                     "textDocument": {"uri": path_to_uri(document.file_name)},
                 },
             )
-            self.action_target_map[method] = document
 
     def _handle_preparerename(self, location: dict):
         method = "textDocument/prepareRename"
