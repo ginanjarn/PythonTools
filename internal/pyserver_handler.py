@@ -659,10 +659,6 @@ class DiagnosticManager:
     STATUS_KEY = f"{PACKAGE_NAME}_DIAGNOSTIC_STATUS"
 
     def _show_status(self, view: sublime.View):
-        if not self._active_view_diagnostics:
-            view.erase_status(self.STATUS_KEY)
-            return
-
         value = "ERROR %s, WARNING %s"
         err_count = len(
             [item for item in self._active_view_diagnostics if item.severity == 1]
