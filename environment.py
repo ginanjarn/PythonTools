@@ -50,7 +50,7 @@ class PythonToolsSetEnvironmentCommand(sublime_plugin.WindowCommand):
                 return
 
             elif index == scan_environments_index:
-                self.window.run_command("pythontools_set_environment", {"scan": True})
+                self.window.run_command("python_tools_set_environment", {"scan": True})
                 return
 
             # Process in thread to prevent blocking
