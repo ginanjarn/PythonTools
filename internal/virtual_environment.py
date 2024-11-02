@@ -16,6 +16,10 @@ class EnvironmentManager:
     python_bin: str
     activate_command: str
 
+    def __post_init__(self):
+        # Fix TypeError if python_bin type is Path
+        self.python_bin = str(self.python_bin)
+
 
 class Global(EnvironmentManager):
     """Global environement"""
@@ -82,12 +86,13 @@ def get_environment(m: EnvironmentManager) -> Optional[dict]:
     return None
 
 
-def scan(workdir: str) -> Iterator[EnvironmentManager]:
+def scan(workdir: Optional[Path]) -> Iterator[EnvironmentManager]:
     """scan available environment manager"""
 
     yield from scan_global()
     yield from scan_conda()
-    yield from scan_venv(Path(workdir))
+    if workdir:
+        yield from scan_venv(workdir)
 
 
 # There some difference layout for windows and posix
@@ -107,20 +112,20 @@ def scan_global():
     """scan global environment"""
 
     for folder in os.environ["PATH"].split(os.pathsep):
-        pythonpath = Path(folder).joinpath(PYTHON)
+        pythonpath = Path(folder, PYTHON)
 
         if pythonpath.is_file():
-            yield Global(str(pythonpath), None)
+            yield Global(pythonpath, None)
 
 
 def scan_conda_envs(condabin: Path, basepath: Path):
-    condabin = basepath.joinpath("condabin", "conda")
+    condabin = Path(basepath, "condabin", "conda")
     folders = [path for path in basepath.glob("envs/*") if path.is_dir()]
     for folder in folders:
-        pythonpath = folder.joinpath(PYTHON)
+        pythonpath = Path(folder, PYTHON)
 
         if pythonpath.is_file():
-            yield Conda(str(pythonpath), f"'{condabin}' activate '{folder}'")
+            yield Conda(pythonpath, f"'{condabin}' activate '{folder}'")
 
 
 def scan_conda():
@@ -130,11 +135,11 @@ def scan_conda():
     home = Path().home()
     folders = [path for path in home.glob("*conda*") if path.is_dir()]
     for folder in folders:
-        pythonpath = folder.joinpath(PYTHON)
+        pythonpath = Path(folder, PYTHON)
 
         if pythonpath.is_file():
-            condabin = folder.joinpath("condabin", "conda")
-            yield Conda(str(pythonpath), f"'{condabin}' activate '{folder}'")
+            condabin = Path(folder, "condabin", "conda")
+            yield Conda(pythonpath, f"'{condabin}' activate '{folder}'")
 
             yield from scan_conda_envs(condabin, folder)
 
@@ -142,10 +147,10 @@ def scan_conda():
 def scan_venv(workdir: Path):
     """scan venv environment"""
 
-    folders = [path for path in workdir.iterdir() if path.is_dir()]
+    folders = [path for path in Path(workdir).iterdir() if path.is_dir()]
     for folder in folders:
-        pythonpath = folder.joinpath(PYTHON)
-        activatepath = folder.joinpath(BINARY_PATH, "activate")
+        pythonpath = Path(folder, PYTHON)
+        activatepath = Path(folder, BINARY_PATH, "activate")
 
         if pythonpath.is_file():
             yield Venv(pythonpath, f"'{VENV_ACTIVATE_PREFIX}{activatepath}'")
