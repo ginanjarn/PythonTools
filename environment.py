@@ -4,7 +4,7 @@ import json
 import threading
 from dataclasses import asdict
 from pathlib import Path
-from typing import Iterator, Iterable
+from typing import Iterator, Iterable, Optional
 
 import sublime
 import sublime_plugin
@@ -13,17 +13,23 @@ from .internal import virtual_environment as venv
 from .internal.sublime_settings import Settings
 
 
-def get_workspace_path(view: sublime.View) -> str:
-    window = view.window()
-    file_name = view.file_name()
-    if not file_name:
-        return ""
+def get_workspace_path(view: sublime.View) -> Optional[Path]:
+    try:
+        file_name = Path(view.file_name())
+    except TypeError:
+        # file_name is None
+        return None
 
-    if folders := [
-        folder for folder in window.folders() if file_name.startswith(folder)
-    ]:
-        return max(folders)
-    return str(Path(file_name).parent)
+    folders = [
+        folder
+        for folder in view.window().folders()
+        if str(file_name).startswith(folder)
+    ]
+    if not folders:
+        return None
+
+    # return folder nearest to file
+    return Path(max(folders))
 
 
 class PythonToolsSetEnvironmentCommand(sublime_plugin.WindowCommand):
