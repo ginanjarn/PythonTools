@@ -1,6 +1,7 @@
 """handler"""
 
 import threading
+from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import asdict
 from typing import Optional, List, Dict, Callable, Any
@@ -90,8 +91,46 @@ class DiagnosticPanel:
             window.destroy_output_panel(self.OUTPUT_PANEL_NAME)
 
 
-class BaseHandler(lsp_client.Handler):
-    """Base handler"""
+class Command(ABC):
+    """Command Interface"""
+
+    @abstractmethod
+    def initialize(self, view: sublime.View) -> None: ...
+
+    @abstractmethod
+    def textdocument_didopen(
+        self, view: sublime.View, *, reload: bool = False
+    ) -> None: ...
+    @abstractmethod
+    def textdocument_didsave(self, view: sublime.View) -> None: ...
+    @abstractmethod
+    def textdocument_didclose(self, view: sublime.View) -> None: ...
+    @abstractmethod
+    def textdocument_didchange(
+        self, view: sublime.View, changes: List[TextChange]
+    ) -> None: ...
+
+    def textdocument_hover(self, view: sublime.View, row: int, col: int) -> None: ...
+    def textdocument_completion(
+        self, view: sublime.View, row: int, col: int
+    ) -> None: ...
+    def textdocument_signaturehelp(
+        self, view: sublime.View, row: int, col: int
+    ) -> None: ...
+    def textdocument_formatting(self, view: sublime.View) -> None: ...
+    def textdocument_definition(
+        self, view: sublime.View, row: int, col: int
+    ) -> None: ...
+    def textdocument_preparerename(
+        self, view: sublime.View, row: int, col: int
+    ) -> None: ...
+    def textdocument_rename(
+        self, view: sublime.View, row: int, col: int, new_name: str
+    ) -> None: ...
+
+
+class CommandHandler(Command, lsp_client.Handler):
+    """Command Handler"""
 
     def __init__(self, transport: lsp_client.Transport):
         self.transport = transport
@@ -134,7 +173,7 @@ class BaseHandler(lsp_client.Handler):
 
         with self.run_server_lock:
             if not self.client.is_server_running():
-                sublime.status_message("running pyserver...")
+                sublime.status_message("running language server...")
                 # sometimes the server stop working
                 # we must reset the state before run server
                 self._reset_state()
@@ -147,33 +186,6 @@ class BaseHandler(lsp_client.Handler):
 
     def terminate(self):
         raise NotImplementedError("terminate")
-
-    def initialize(self, view: sublime.View) -> None: ...
-    def textdocument_didopen(
-        self, view: sublime.View, *, reload: bool = False
-    ) -> None: ...
-    def textdocument_didsave(self, view: sublime.View) -> None: ...
-    def textdocument_didclose(self, view: sublime.View) -> None: ...
-    def textdocument_didchange(
-        self, view: sublime.View, changes: List[TextChange]
-    ) -> None: ...
-    def textdocument_hover(self, view: sublime.View, row: int, col: int) -> None: ...
-    def textdocument_completion(
-        self, view: sublime.View, row: int, col: int
-    ) -> None: ...
-    def textdocument_signaturehelp(
-        self, view: sublime.View, row: int, col: int
-    ) -> None: ...
-    def textdocument_formatting(self, view: sublime.View) -> None: ...
-    def textdocument_definition(
-        self, view: sublime.View, row: int, col: int
-    ) -> None: ...
-    def textdocument_preparerename(
-        self, view: sublime.View, row: int, col: int
-    ) -> None: ...
-    def textdocument_rename(
-        self, view: sublime.View, row: int, col: int, new_name: str
-    ) -> None: ...
 
 
 def set_selection(view: sublime.View, regions: List[sublime.Region]):

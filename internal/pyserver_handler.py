@@ -26,7 +26,7 @@ from .document import (
     uri_to_path,
 )
 from .handler import (
-    BaseHandler,
+    CommandHandler,
     DiagnosticPanel,
     COMPLETION_KIND_MAP,
     input_text,
@@ -85,7 +85,7 @@ class Session:
         return wrapper
 
 
-class PyserverHandler(BaseHandler):
+class PyserverImplementation(CommandHandler):
     """"""
 
     session = Session()
@@ -752,14 +752,14 @@ class WorkspaceEdit:
         delete_document(file_name)
 
 
-def get_handler() -> BaseHandler:
+def get_handler() -> CommandHandler:
     """"""
     package_path = Path(sublime.packages_path(), PACKAGE_NAME)
 
     server_path = package_path.joinpath("pyserver")
     command = ["python", "-m", "pyserver", "-i"]
     transport = lsp_client.StandardIO(command, server_path)
-    return PyserverHandler(transport)
+    return PyserverImplementation(transport)
 
 
 def get_envs_settings() -> Optional[dict]:

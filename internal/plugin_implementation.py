@@ -9,13 +9,13 @@ from sublime import HoverZone
 
 from .constant import LOGGING_CHANNEL, COMMAND_PREFIX
 from .document import TextChange, is_valid_document
-from .handler import BaseHandler
+from .handler import CommandHandler
 from .pyserver_handler import get_envs_settings
 
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
 
 
-def initialize_server(handler: BaseHandler, view: sublime.View):
+def initialize_server(handler: CommandHandler, view: sublime.View):
     """initialize server"""
     handler.run_server(get_envs_settings())
     handler.initialize(view)
@@ -24,7 +24,7 @@ def initialize_server(handler: BaseHandler, view: sublime.View):
 class OpenEventListener:
 
     def __init__(self, *args, **kwargs):
-        self.handler: BaseHandler
+        self.handler: CommandHandler
         self.prev_completion_point = 0
 
     def _on_activated_async(self, view: sublime.View):
@@ -71,7 +71,7 @@ class OpenEventListener:
 class SaveEventListener:
 
     def __init__(self, *args, **kwargs):
-        self.handler: BaseHandler
+        self.handler: CommandHandler
         self.prev_completion_point = 0
 
     def _on_post_save_async(self, view: sublime.View):
@@ -86,7 +86,7 @@ class SaveEventListener:
 class CloseEventListener:
 
     def __init__(self, *args, **kwargs):
-        self.handler: BaseHandler
+        self.handler: CommandHandler
         self.prev_completion_point = 0
 
     def _on_close(self, view: sublime.View):
@@ -102,7 +102,7 @@ class TextChangeListener:
 
     def __init__(self, *args, **kwargs):
         self.buffer: sublime.Buffer
-        self.handler: BaseHandler
+        self.handler: CommandHandler
 
     def _on_text_changed(self, changes: List[sublime.TextChange]):
         view = self.buffer.primary_view()
@@ -127,7 +127,7 @@ class TextChangeListener:
 class CompletionEventListener:
 
     def __init__(self, *args, **kwargs):
-        self.handler: BaseHandler
+        self.handler: CommandHandler
         self.prev_completion_point = 0
 
     def _is_context_changed(self, view: sublime.View, point: int) -> bool:
@@ -182,7 +182,7 @@ class CompletionEventListener:
 class HoverEventListener:
 
     def __init__(self, *args, **kwargs):
-        self.handler: BaseHandler
+        self.handler: CommandHandler
 
     def _on_hover(self, view: sublime.View, point: int, hover_zone: HoverZone):
         # check point in valid source
@@ -206,7 +206,7 @@ class DocumentSignatureHelpCommand:
 
     def __init__(self, *args, **kwargs):
         self.view: sublime.View
-        self.handler: BaseHandler
+        self.handler: CommandHandler
 
     def _run(self, edit: sublime.Edit, point: int):
         if self.handler.is_ready():
@@ -228,7 +228,7 @@ class DocumentFormattingCommand:
 
     def __init__(self, *args, **kwargs):
         self.view: sublime.View
-        self.handler: BaseHandler
+        self.handler: CommandHandler
 
     def _run(self, edit: sublime.Edit):
         if self.handler.is_ready():
@@ -239,7 +239,7 @@ class GotoDefinitionCommand:
 
     def __init__(self, *args, **kwargs):
         self.view: sublime.View
-        self.handler: BaseHandler
+        self.handler: CommandHandler
 
     def _run(
         self,
@@ -269,7 +269,7 @@ class PrepareRenameCommand:
 
     def __init__(self, *args, **kwargs):
         self.view: sublime.View
-        self.handler: BaseHandler
+        self.handler: CommandHandler
 
     def _run(self, edit: sublime.Edit, event: Optional[dict] = None):
         cursor = self.view.sel()[0]
@@ -287,7 +287,7 @@ class RenameCommand:
 
     def __init__(self, *args, **kwargs):
         self.view: sublime.View
-        self.handler: BaseHandler
+        self.handler: CommandHandler
 
     def _run(self, edit: sublime.Edit, row: int, column: int, new_name: str):
         if self.handler.is_ready():

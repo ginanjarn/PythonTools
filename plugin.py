@@ -22,14 +22,14 @@ from .internal.plugin_implementation import (
     PrepareRenameCommand,
     RenameCommand,
 )
-from .internal.handler import BaseHandler
+from .internal.handler import CommandHandler
 from .internal.pyserver_handler import get_handler
 from .internal.sublime_settings import Settings
 from .internal.document import is_valid_document
 
 
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
-HANDLER: BaseHandler = get_handler()
+HANDLER: CommandHandler = get_handler()
 
 
 def setup_logger(level: int):
