@@ -28,9 +28,10 @@ from .document import (
 from .handler import (
     CommandHandler,
     DiagnosticPanel,
-    COMPLETION_KIND_MAP,
+    get_completion_kind,
     input_text,
     open_location,
+    PathEncodedStr,
 )
 from .sublime_settings import Settings
 from .workspace import (
@@ -41,9 +42,6 @@ from .workspace import (
     delete_document,
 )
 
-PathStr = str
-PathEncodedStr = str
-"""Path encoded '<file_name>:<row>:<column>'"""
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
 
 
@@ -338,7 +336,7 @@ class PyserverImplementation(CommandHandler):
             insert_text = text
 
         signature = completion_item["detail"]
-        kind = COMPLETION_KIND_MAP[completion_item["kind"]]
+        kind = get_completion_kind(completion_item["kind"])
 
         return sublime.CompletionItem.snippet_completion(
             trigger=text,

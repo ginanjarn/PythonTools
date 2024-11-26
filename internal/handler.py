@@ -8,10 +8,9 @@ from typing import Optional, List, Dict, Callable, Any
 
 import sublime
 
-from . import lsp_client
-
 from .constant import PACKAGE_NAME, COMMAND_PREFIX
 from .document import BufferedDocument, TextChange
+from .lsp_client import Client, Handler, Transport
 from .errors import MethodNotFound
 from .workspace import Workspace, open_document
 
@@ -52,6 +51,11 @@ COMPLETION_KIND_MAP = defaultdict(
         25: (sublime.KindId.TYPE, "", ""),  # type parameter
     },
 )
+
+
+def get_completion_kind(lsp_kind: int) -> int:
+    """"""
+    return COMPLETION_KIND_MAP[lsp_kind]
 
 
 class DiagnosticPanel:
@@ -129,12 +133,12 @@ class Command(ABC):
     ) -> None: ...
 
 
-class CommandHandler(Command, lsp_client.Handler):
+class CommandHandler(Command, Handler):
     """Command Handler"""
 
-    def __init__(self, transport: lsp_client.Transport):
+    def __init__(self, transport: Transport):
         self.transport = transport
-        self.client = lsp_client.Client(self.transport, self)
+        self.client = Client(self.transport, self)
 
         # server message handler
         self.handler_map: Dict[MethodName, HandlerFunction] = {}
