@@ -12,7 +12,7 @@ from abc import ABC, abstractmethod
 from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
-from typing import Optional, Union, List
+from typing import Optional, Union, List, Dict, Set
 
 from . import errors
 from .constant import LOGGING_CHANNEL
@@ -253,17 +253,21 @@ class Canceled(Exception):
     """Request Canceled"""
 
 
+class MethodName(str):
+    """Method name"""
+
+
 class RequestManager:
     """RequestManager manage method mapped to request_id."""
 
     def __init__(self):
-        self.methods_map = {}
-        self.canceled_requests = set()
+        self.methods_map: Dict[int, MethodName] = {}
+        self.canceled_requests: Set[int] = set()
         self.request_count = 0
 
         self._lock = threading.Lock()
 
-    def add_method(self, method: str) -> int:
+    def add(self, method: MethodName) -> int:
         """add request method to request_map
 
         Return:
@@ -275,8 +279,8 @@ class RequestManager:
 
             return self.request_count
 
-    def get_method(self, request_id: int) -> str:
-        """get method paired with request_id
+    def pop(self, request_id: int) -> MethodName:
+        """pop method paired with request_id
 
         Return:
             method: str
@@ -293,31 +297,27 @@ class RequestManager:
             # pop() is simpler than get() and del
             return self.methods_map.pop(request_id)
 
-    def get_request_id(self, method: str) -> Optional[int]:
-        """get request_id paired with method
+    def _get_previous_request(self, method: MethodName) -> Optional[int]:
+        for req_id, meth in self.methods_map.items():
+            if meth == method:
+                return req_id
+
+        return None
+
+    def cancel(self, method: MethodName) -> Optional[int]:
+        """cancel request
 
         Return:
             request_id: Optional[int]
         """
 
         with self._lock:
-            for req_id, meth in self.methods_map.items():
-                if meth == method:
-                    return req_id
+            request_id = self._get_previous_request(method)
+            if request_id is None:
+                return None
 
-            return None
-
-    def mark_canceled(self, request_id: int):
-        """mark request as canceled"""
-
-        with self._lock:
-            try:
-                del self.methods_map[request_id]
-            except KeyError:
-                pass
-            else:
-                # mark canceled if 'request_id' in 'request_map'
-                self.canceled_requests.add(request_id)
+            del self.methods_map[request_id]
+            self.canceled_requests.add(request_id)
 
 
 class Client:
@@ -427,7 +427,7 @@ class Client:
 
     def handle_response(self, message: RPCMessage):
         try:
-            method = self.request_manager.get_method(message["id"])
+            method = self.request_manager.pop(message["id"])
         except Canceled:
             # ignore canceled response
             return
@@ -439,11 +439,10 @@ class Client:
 
     def send_request(self, method: str, params: dict):
         # cancel previous request with same method
-        if prev_request := self.request_manager.get_request_id(method):
-            self.request_manager.mark_canceled(prev_request)
+        if prev_request := self.request_manager.cancel(method):
             self.send_notification("$/cancelRequest", {"id": prev_request})
 
-        req_id = self.request_manager.add_method(method)
+        req_id = self.request_manager.add(method)
         self.send_message(RPCMessage.request(req_id, method, params))
 
     def send_notification(self, method: str, params: dict):
