@@ -25,8 +25,8 @@ from .document import (
     path_to_uri,
     uri_to_path,
 )
-from .handler import (
-    CommandHandler,
+from .session import (
+    Session,
     DiagnosticPanel,
     get_completion_kind,
     input_text,
@@ -43,90 +43,127 @@ from .workspace import (
 )
 
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
+LineCharacter = namedtuple("LineCharacter", ["line", "character"])
+"""Line Character namedtuple"""
 
 
-class Session:
+class InitializeManager:
+    """"""
+
     def __init__(self):
-        self.event = threading.Event()
+        self.initialize_event = threading.Event()
+        self._is_initializing = False
+        self._is_initialized = False
 
-    def is_begin(self):
-        return self.event.is_set()
+    def reset(self):
+        self.initialize_event.clear()
+        self._is_initializing = False
+        self._is_initialized = False
 
-    def begin(self):
-        """begin session"""
-        self.event.set()
+    def set_initializing(self, status: bool = True) -> None:
+        """"""
+        self._is_initializing = status
 
-    def done(self):
+    def is_initializing(self) -> bool:
+        """"""
+        return self._is_initializing
+
+    def is_initialized(self) -> bool:
+        """"""
+        return self._is_initialized
+
+    def initialize(self) -> None:
+        """initialie session"""
+        self.initialize_event.set()
+        self._is_initializing = False
+        self._is_initialized = True
+
+    def uninitialize(self) -> None:
         """done session"""
-        self.event.clear()
+        self._is_initialized = False
+        self.initialize_event.clear()
 
-    def must_begin(self, func):
-        """return 'None' if not begin"""
+    def must_initialized(self, func):
+        """decorator to ignore function call if not initialized"""
 
         @wraps(func)
         def wrapper(*args, **kwargs):
-            if not self.event.is_set():
+            if not self._is_initialized:
                 return None
 
             return func(*args, **kwargs)
 
         return wrapper
 
-    def wait_begin(self, func):
-        """return function after session is begin"""
+    def wait_initialized(self, func):
+        """decorator to wait function call execution until initialized"""
 
         @wraps(func)
         def wrapper(*args, **kwargs):
-            self.event.wait()
+            self.initialize_event.wait()
             return func(*args, **kwargs)
 
         return wrapper
 
 
-class PyserverImplementation(CommandHandler):
+class PyserverSession(Session):
     """"""
 
-    session = Session()
+    initialize_manager = InitializeManager()
 
     def __init__(self, transport: lsp_client.Transport):
         super().__init__(transport)
         self.diagnostic_manager = DiagnosticManager(
             DiagnosticReportSettings(show_panel=False)
         )
+        self._set_default_handler()
 
-        self.handler_map.update(
-            {
-                "initialize": self.handle_initialize,
-                # window
-                "window/logMessage": self.handle_window_logmessage,
-                "window/showMessage": self.handle_window_showmessage,
-                # workspace
-                "workspace/applyEdit": self.handle_workspace_applyedit,
-                "workspace/executeCommand": self.handle_workspace_executecommand,
-                # textDocument
-                "textDocument/hover": self.handle_textdocument_hover,
-                "textDocument/completion": self.handle_textdocument_completion,
-                "textDocument/signatureHelp": self.handle_textdocument_signaturehelp,
-                "textDocument/publishDiagnostics": self.handle_textdocument_publishdiagnostics,
-                "textDocument/formatting": self.handle_textdocument_formatting,
-                "textDocument/definition": self.handle_textdocument_definition,
-                "textDocument/prepareRename": self.handle_textdocument_preparerename,
-                "textDocument/rename": self.handle_textdocument_rename,
-            }
+        # document target
+        self.action_target_map: Dict[lsp_client.MethodName, BufferedDocument] = {}
+
+        # workspace status
+        self.workspace = Workspace()
+
+    def _reset_state(self) -> None:
+        self.workspace.reset()
+        self.action_target_map.clear()
+        self.initialize_manager.reset()
+        self.diagnostic_manager.reset()
+
+    def _set_default_handler(self):
+        default_handlers = {
+            "initialize": self.handle_initialize,
+            # window
+            "window/logMessage": self.handle_window_logmessage,
+            "window/showMessage": self.handle_window_showmessage,
+            # workspace
+            "workspace/applyEdit": self.handle_workspace_applyedit,
+            "workspace/executeCommand": self.handle_workspace_executecommand,
+            # textDocument
+            "textDocument/hover": self.handle_textdocument_hover,
+            "textDocument/completion": self.handle_textdocument_completion,
+            "textDocument/signatureHelp": self.handle_textdocument_signaturehelp,
+            "textDocument/publishDiagnostics": self.handle_textdocument_publishdiagnostics,
+            "textDocument/formatting": self.handle_textdocument_formatting,
+            "textDocument/definition": self.handle_textdocument_definition,
+            "textDocument/prepareRename": self.handle_textdocument_preparerename,
+            "textDocument/rename": self.handle_textdocument_rename,
+        }
+        self.handler_map.update(default_handlers)
+
+    def _is_ready(self) -> bool:
+        return (
+            self.client.is_server_running() and self.initialize_manager.is_initialized()
         )
 
-    def is_ready(self) -> bool:
-        return self.client.is_server_running() and self.session.is_begin()
-
-    def terminate(self):
-        """exit session"""
+    def _terminate(self):
+        """"""
         self.client.terminate_server()
-        self.diagnostic_manager.reset()
         self._reset_state()
 
     def initialize(self, view: sublime.View):
         # cancel if initializing
-        if self._initializing:
+        if self.initialize_manager.is_initializing():
             return
 
         # check if view not closed
@@ -137,7 +174,7 @@ class PyserverImplementation(CommandHandler):
         if not workspace_path:
             return
 
-        self._initializing = True
+        self.initialize_manager.set_initializing()
         self.client.send_request(
             "initialize",
             {
@@ -159,10 +196,7 @@ class PyserverImplementation(CommandHandler):
             return
 
         self.client.send_notification("initialized", {})
-        self._initializing = False
-
-        self.diagnostic_manager.reset()
-        self.session.begin()
+        self.initialize_manager.initialize()
 
     def handle_window_logmessage(self, params: dict):
         print(params["message"])
@@ -170,7 +204,7 @@ class PyserverImplementation(CommandHandler):
     def handle_window_showmessage(self, params: dict):
         sublime.status_message(params["message"])
 
-    @session.wait_begin
+    @initialize_manager.wait_initialized
     def textdocument_didopen(self, view: sublime.View, *, reload: bool = False):
         # check if view not closed
         if not (view and view.is_valid()):
@@ -206,7 +240,7 @@ class PyserverImplementation(CommandHandler):
                 },
             )
 
-    @session.must_begin
+    @initialize_manager.must_initialized
     def textdocument_didsave(self, view: sublime.View):
         if document := self.workspace.get_document(view):
             self.client.send_notification(
@@ -218,7 +252,7 @@ class PyserverImplementation(CommandHandler):
             # untitled document not yet loaded to server
             self.textdocument_didopen(view)
 
-    @session.must_begin
+    @initialize_manager.must_initialized
     def textdocument_didclose(self, view: sublime.View):
         file_name = view.file_name()
         self.diagnostic_manager.remove(view)
@@ -235,19 +269,7 @@ class PyserverImplementation(CommandHandler):
                 {"textDocument": {"uri": path_to_uri(document.file_name)}},
             )
 
-    def _text_change_to_rpc(self, text_change: TextChange) -> dict:
-        start = text_change.start
-        end = text_change.end
-        return {
-            "range": {
-                "end": {"character": end.column, "line": end.row},
-                "start": {"character": start.column, "line": start.row},
-            },
-            "rangeLength": text_change.length,
-            "text": text_change.text,
-        }
-
-    @session.must_begin
+    @initialize_manager.must_initialized
     def textdocument_didchange(self, view: sublime.View, changes: List[TextChange]):
         # Document can be related to multiple View but has same file_name.
         # Use get_document_by_name() because may be document already open
@@ -257,7 +279,7 @@ class PyserverImplementation(CommandHandler):
             self.client.send_notification(
                 "textDocument/didChange",
                 {
-                    "contentChanges": [self._text_change_to_rpc(c) for c in changes],
+                    "contentChanges": [textchange_to_rpc(c) for c in changes],
                     "textDocument": {
                         "uri": path_to_uri(document.file_name),
                         "version": document.version,
@@ -281,7 +303,7 @@ class PyserverImplementation(CommandHandler):
         )
         return f"{title}\n{diagnostic_message}"
 
-    @session.must_begin
+    @initialize_manager.must_initialized
     def textdocument_hover(self, view, row, col):
         method = "textDocument/hover"
         # In multi row/column layout, new popup will created in current View,
@@ -310,11 +332,10 @@ class PyserverImplementation(CommandHandler):
 
         elif result := params.get("result"):
             message = result["contents"]["value"]
-            start = result["range"]["start"]
-            row, col = start["line"], start["character"]
+            row, col = LineCharacter(**result["range"]["start"])
             self.action_target_map[method].show_popup(message, row, col)
 
-    @session.must_begin
+    @initialize_manager.must_initialized
     def textdocument_completion(self, view, row, col):
         method = "textDocument/completion"
         if document := self.workspace.get_document(view):
@@ -354,7 +375,7 @@ class PyserverImplementation(CommandHandler):
             items = [self._build_completion(item) for item in result["items"]]
             self.action_target_map[method].show_completion(items)
 
-    @session.must_begin
+    @initialize_manager.must_initialized
     def textdocument_signaturehelp(self, view, row, col):
         method = "textDocument/signatureHelp"
         if document := self.workspace.get_document(view):
@@ -393,23 +414,9 @@ class PyserverImplementation(CommandHandler):
         diagnostics = params["diagnostics"]
 
         for document in self.workspace.get_documents(file_name):
-            self.diagnostic_manager.update(document.view, diagnostics)
+            self.diagnostic_manager.set(document.view, diagnostics)
 
-    @staticmethod
-    def _get_text_change(change: dict) -> TextChange:
-        start = change["range"]["start"]
-        end = change["range"]["end"]
-        text = change["newText"]
-        length = change["rangeLength"]
-
-        return TextChange(
-            (start["line"], start["character"]),
-            (end["line"], end["character"]),
-            text,
-            length,
-        )
-
-    @session.must_begin
+    @initialize_manager.must_initialized
     def textdocument_formatting(self, view):
         method = "textDocument/formatting"
         if document := self.workspace.get_document(view):
@@ -427,12 +434,12 @@ class PyserverImplementation(CommandHandler):
         if error := params.get("error"):
             print(error["message"])
         elif result := params.get("result"):
-            changes = [self._get_text_change(c) for c in result]
-            self.action_target_map[method].apply_text_changes(changes)
+            changes = [rpc_to_textchange(c) for c in result]
+            self.action_target_map[method].apply_changes(changes)
 
     def handle_workspace_applyedit(self, params: dict) -> dict:
         try:
-            WorkspaceEdit(self.workspace).apply(params["edit"])
+            WorkspaceEdit(self.workspace).apply_changes(params["edit"])
 
         except Exception as err:
             LOGGER.error(err, exc_info=True)
@@ -448,7 +455,7 @@ class PyserverImplementation(CommandHandler):
 
         return None
 
-    @session.must_begin
+    @initialize_manager.must_initialized
     def textdocument_definition(self, view, row, col):
         method = "textDocument/definition"
         if document := self.workspace.get_document(view):
@@ -464,9 +471,8 @@ class PyserverImplementation(CommandHandler):
     @staticmethod
     def _build_location(location: dict) -> PathEncodedStr:
         file_name = uri_to_path(location["uri"])
-        row = location["range"]["start"]["line"]
-        col = location["range"]["start"]["character"]
-        return f"{file_name}:{row+1}:{col+1}"
+        start_row, start_col = LineCharacter(**location["range"]["start"])
+        return f"{file_name}:{start_row+1}:{start_col+1}"
 
     def handle_textdocument_definition(self, params: dict):
         method = "textDocument/definition"
@@ -477,7 +483,7 @@ class PyserverImplementation(CommandHandler):
             locations = [self._build_location(l) for l in result]
             open_location(view, locations)
 
-    @session.must_begin
+    @initialize_manager.must_initialized
     def textdocument_preparerename(self, view, row, col):
         method = "textDocument/prepareRename"
         if document := self.workspace.get_document(view):
@@ -490,7 +496,7 @@ class PyserverImplementation(CommandHandler):
                 },
             )
 
-    @session.must_begin
+    @initialize_manager.must_initialized
     def textdocument_rename(self, view, row, col, new_name):
         method = "textDocument/rename"
         if document := self.workspace.get_document(view):
@@ -508,10 +514,10 @@ class PyserverImplementation(CommandHandler):
         method = "textDocument/prepareRename"
         view = self.action_target_map[method].view
 
-        start = location["range"]["start"]
-        start_point = view.text_point(start["line"], start["character"])
-        end = location["range"]["end"]
-        end_point = view.text_point(end["line"], end["character"])
+        start = LineCharacter(**location["range"]["start"])
+        end = LineCharacter(**location["range"]["end"])
+        start_point = view.text_point(*start)
+        end_point = view.text_point(*end)
 
         region = sublime.Region(start_point, end_point)
         old_name = view.substr(region)
@@ -536,7 +542,31 @@ class PyserverImplementation(CommandHandler):
         if error := params.get("error"):
             print(error["message"])
         elif result := params.get("result"):
-            WorkspaceEdit(self.workspace).apply(result)
+            WorkspaceEdit(self.workspace).apply_changes(result)
+
+
+def textchange_to_rpc(text_change: TextChange) -> dict:
+    """"""
+    start = text_change.start
+    end = text_change.end
+    return {
+        "range": {
+            "end": {"character": end.column, "line": end.row},
+            "start": {"character": start.column, "line": start.row},
+        },
+        "rangeLength": text_change.length,
+        "text": text_change.text,
+    }
+
+
+def rpc_to_textchange(change: dict) -> TextChange:
+    """"""
+    return TextChange(
+        LineCharacter(**change["range"]["start"]),
+        LineCharacter(**change["range"]["end"]),
+        change["newText"],
+        change["rangeLength"],
+    )
 
 
 class DiagnosticItem:
@@ -561,12 +591,13 @@ class DiagnosticReportSettings:
 
 class DiagnosticManager:
     def __init__(self, settings: DiagnosticReportSettings = None) -> None:
-        self.settings = settings or DiagnosticReportSettings()
         self.diagnostics: Dict[sublime.View, List[dict]] = {}
-        self.active_view: sublime.View = None
+
+        self.settings = settings or DiagnosticReportSettings()
         self.panel = DiagnosticPanel()
 
         self._change_lock = threading.Lock()
+        self._active_view: sublime.View = None
         self._active_view_diagnostics: List[DiagnosticItem] = []
 
     def reset(self):
@@ -574,20 +605,19 @@ class DiagnosticManager:
         for view in self.diagnostics.keys():
             view.erase_regions(self.REGIONS_KEY)
 
-        self.diagnostics = {}
-        self.active_view = None
-        self.panel.destroy()
-
+        self._active_view = None
         self._active_view_diagnostics = []
+        self.panel.destroy()
+        self.diagnostics = {}
 
     def get(self, view: sublime.View) -> List[dict]:
         with self._change_lock:
             return self.diagnostics.get(view, [])
 
-    def update(self, view: sublime.View, diagostics: List[dict]):
+    def set(self, view: sublime.View, diagostics: List[dict]):
         with self._change_lock:
             self.diagnostics.update({view: diagostics})
-            self._on_diagnostic_changed()
+            self._on_diagnostic_changed(view)
 
     def remove(self, view: sublime.View):
         with self._change_lock:
@@ -595,58 +625,57 @@ class DiagnosticManager:
                 del self.diagnostics[view]
             except KeyError:
                 pass
-            self._on_diagnostic_changed()
+            self._on_diagnostic_changed(view)
 
     def set_active_view(self, view: sublime.View):
-        if view == self.active_view:
+        if view == self._active_view:
             return
 
-        self.active_view = view
-        self._on_diagnostic_changed()
+        self._active_view = view
+        self._on_diagnostic_changed(view)
 
     def get_active_view_diagnostics(
-        self, predicate: Callable[[DiagnosticItem], bool] = None
+        self, filter_func: Callable[[DiagnosticItem], bool] = None
     ) -> List[DiagnosticItem]:
-        if not predicate:
+        if not filter_func:
             return self._active_view_diagnostics
+        return [d for d in self._active_view_diagnostics if filter_func(d)]
 
-        return [d for d in self._active_view_diagnostics if predicate(d)]
+    def _on_diagnostic_changed(self, view: sublime.View):
+        diagnostics = [
+            self._to_diagnostic_item(view, diagnostic)
+            for diagnostic in self.diagnostics.get(view, [])
+        ]
 
-    LineCharacter = namedtuple("LineCharacter", ["line", "character"])
+        if self.settings.highlight_text:
+            self._highlight_regions(view, diagnostics)
+        if self.settings.show_status:
+            self._show_status(view, diagnostics)
+
+        if view != self._active_view:
+            return
+
+        self._active_view_diagnostics = diagnostics
+        if self.settings.show_panel:
+            self._show_panel(view, diagnostics)
 
     def _to_diagnostic_item(
         self, view: sublime.View, diagnostic: dict, /
     ) -> DiagnosticItem:
 
-        start = self.LineCharacter(**diagnostic["range"]["start"])
-        end = self.LineCharacter(**diagnostic["range"]["end"])
+        start = LineCharacter(**diagnostic["range"]["start"])
+        end = LineCharacter(**diagnostic["range"]["end"])
         region = sublime.Region(view.text_point(*start), view.text_point(*end))
         message = diagnostic["message"]
         if source := diagnostic.get("source"):
-            message += f" ({source})"
+            message = f"{message} ({source})"
 
         return DiagnosticItem(diagnostic["severity"], region, message)
 
-    def _update_active_view_diagnostics(self):
-        self._active_view_diagnostics = [
-            self._to_diagnostic_item(self.active_view, diagnostic)
-            for diagnostic in self.diagnostics.get(self.active_view, [])
-        ]
-
-    def _on_diagnostic_changed(self):
-        self._update_active_view_diagnostics()
-
-        if self.settings.highlight_text:
-            self._highlight_regions(self.active_view)
-        if self.settings.show_status:
-            self._show_status(self.active_view)
-        if self.settings.show_panel:
-            self._show_panel(self.active_view)
-
     REGIONS_KEY = f"{PACKAGE_NAME}_DIAGNOSTIC_REGIONS"
 
-    def _highlight_regions(self, view: sublime.View):
-        regions = [item.region for item in self._active_view_diagnostics]
+    def _highlight_regions(self, view: sublime.View, diagnostics: List[DiagnosticItem]):
+        regions = [item.region for item in diagnostics]
         view.add_regions(
             key=self.REGIONS_KEY,
             regions=regions,
@@ -659,23 +688,19 @@ class DiagnosticManager:
 
     STATUS_KEY = f"{PACKAGE_NAME}_DIAGNOSTIC_STATUS"
 
-    def _show_status(self, view: sublime.View):
+    def _show_status(self, view: sublime.View, diagnostics: List[DiagnosticItem]):
         value = "ERROR %s, WARNING %s"
-        err_count = len(
-            [item for item in self._active_view_diagnostics if item.severity == 1]
-        )
-        warn_count = len(self._active_view_diagnostics) - err_count
+        err_count = len([item for item in diagnostics if item.severity == 1])
+        warn_count = len(diagnostics) - err_count
         view.set_status(self.STATUS_KEY, value % (err_count, warn_count))
 
-    def _show_panel(self, view: sublime.View):
-        def wrap_location(view: sublime.View, item: DiagnosticItem):
+    def _show_panel(self, view: sublime.View, diagnostics: List[DiagnosticItem]):
+        def build_line(view: sublime.View, item: DiagnosticItem):
             short_name = Path(view.file_name()).name
             row, col = view.rowcol(item.region.begin())
             return f"{short_name}:{row+1}:{col} {item.message}"
 
-        content = "\n".join(
-            [wrap_location(view, item) for item in self._active_view_diagnostics]
-        )
+        content = "\n".join([build_line(view, item) for item in diagnostics])
         self.panel.set_content(content)
         self.panel.show()
 
@@ -685,7 +710,7 @@ class WorkspaceEdit:
     def __init__(self, workspace_: Workspace):
         self.workspace = workspace_
 
-    def apply(self, edit_changes: dict) -> None:
+    def apply_changes(self, edit_changes: dict) -> None:
         """"""
 
         for document_changes in edit_changes["documentChanges"]:
@@ -702,27 +727,13 @@ class WorkspaceEdit:
     def _apply_textedit_changes(self, document_changes: dict):
         file_name = uri_to_path(document_changes["textDocument"]["uri"])
         edits = document_changes["edits"]
-        changes = [self._get_text_change(c) for c in edits]
+        changes = [rpc_to_textchange(c) for c in edits]
 
         document = self.workspace.get_document_by_name(
             file_name, UnbufferedDocument(file_name)
         )
-        document.apply_text_changes(changes)
+        document.apply_changes(changes)
         document.save()
-
-    @staticmethod
-    def _get_text_change(change: dict) -> TextChange:
-        start = change["range"]["start"]
-        end = change["range"]["end"]
-        text = change["newText"]
-        length = change["rangeLength"]
-
-        return TextChange(
-            (start["line"], start["character"]),
-            (end["line"], end["character"]),
-            text,
-            length,
-        )
 
     def _apply_resource_changes(self, changes: dict):
         func = {
@@ -750,14 +761,14 @@ class WorkspaceEdit:
         delete_document(file_name)
 
 
-def get_handler() -> CommandHandler:
+def get_session() -> Session:
     """"""
     package_path = Path(sublime.packages_path(), PACKAGE_NAME)
 
     server_path = package_path.joinpath("pyserver")
     command = ["python", "-m", "pyserver", "-i"]
     transport = lsp_client.StandardIO(command, server_path)
-    return PyserverImplementation(transport)
+    return PyserverSession(transport)
 
 
 def get_envs_settings() -> Optional[dict]:

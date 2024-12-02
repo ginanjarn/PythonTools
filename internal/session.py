@@ -9,15 +9,13 @@ from typing import Optional, List, Dict, Callable, Any
 import sublime
 
 from .constant import PACKAGE_NAME, COMMAND_PREFIX
-from .document import BufferedDocument, TextChange
-from .lsp_client import Client, Handler, Transport
+from .document import TextChange
+from .lsp_client import Client, Handler, Transport, MethodName
 from .errors import MethodNotFound
-from .workspace import Workspace, open_document
+from .workspace import open_document
 
-PathStr = str
 PathEncodedStr = str
 """Path encoded '<file_name>:<row>:<column>'"""
-MethodName = str
 HandlerFunction = Callable[[str, dict], Any]
 
 
@@ -133,63 +131,57 @@ class Command(ABC):
     ) -> None: ...
 
 
-class CommandHandler(Command, Handler):
-    """Command Handler"""
+class Session(Command, Handler):
+    """Session"""
 
     def __init__(self, transport: Transport):
         self.transport = transport
         self.client = Client(self.transport, self)
 
         # server message handler
-        self.handler_map: Dict[MethodName, HandlerFunction] = {}
-        # document target
-        self.action_target_map: Dict[MethodName, BufferedDocument] = {}
-
-        # workspace status
-        self._initializing = False
-        self.workspace = Workspace()
-
-        self.run_server_lock = threading.Lock()
-
-    def _reset_state(self) -> None:
-        self._initializing = False
-        self.workspace.reset()
-
-        self.action_target_map.clear()
-        self.session.done()
+        self.handler_map: Dict[MethodName, HandlerFunction] = dict()
+        self._run_server_lock = threading.Lock()
 
     def handle(self, method: MethodName, params: dict) -> Optional[dict]:
         """"""
         try:
             func = self.handler_map[method]
-        except (KeyError, AttributeError) as err:
+        except KeyError as err:
             raise MethodNotFound(err)
 
         return func(params)
 
-    def register_handler(self, method: MethodName, function: HandlerFunction):
+    def register_handler(self, method: MethodName, function: HandlerFunction) -> None:
+        """"""
         self.handler_map[method] = function
 
     def run_server(self, env: Optional[dict] = None) -> None:
+        """"""
         # only one thread can run server
-        if self.run_server_lock.locked():
+        if self._run_server_lock.locked():
             return
 
-        with self.run_server_lock:
+        with self._run_server_lock:
             if not self.client.is_server_running():
                 sublime.status_message("running language server...")
                 # sometimes the server stop working
                 # we must reset the state before run server
-                self._reset_state()
+                self.reset_state()
 
                 self.client.run_server(env)
                 self.client.listen()
 
-    def is_ready(self) -> bool:
-        raise NotImplementedError("is_ready")
+    def reset_state(self) -> None:
+        """reset session state"""
+        self._reset_state()
 
-    def terminate(self):
-        raise NotImplementedError("terminate")
+    def is_ready(self) -> bool:
+        """check session is ready"""
+        return self._is_ready()
+
+    def terminate(self) -> None:
+        """terminate session"""
+        self._terminate()
 
 
 def set_selection(view: sublime.View, regions: List[sublime.Region]):
