@@ -315,6 +315,7 @@ class RequestManager:
 
             del self.methods_map[request_id]
             self.canceled_requests.add(request_id)
+            return request_id
 
 
 class Client:
