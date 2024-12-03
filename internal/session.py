@@ -135,8 +135,7 @@ class Session(Command, Handler):
     """Session"""
 
     def __init__(self, transport: Transport):
-        self.transport = transport
-        self.client = Client(self.transport, self)
+        self.client = Client(transport, self)
 
         # server message handler
         self.handler_map: Dict[MethodName, HandlerFunction] = dict()
