@@ -52,7 +52,7 @@ class RPCMessage(dict):
         return dumped
 
     @classmethod
-    def load(cls, data: Union[str, bytes]) -> "RPCMessage":
+    def loads(cls, data: Union[str, bytes]) -> "RPCMessage":
         """load rpc message from json text"""
 
         loaded = json.loads(data)
@@ -337,7 +337,7 @@ class Client:
 
             content = self.transport.read()
             try:
-                message = RPCMessage.load(content)
+                message = RPCMessage.loads(content)
             except json.JSONDecodeError as err:
                 LOGGER.exception("content: '%s'", content)
                 raise err
