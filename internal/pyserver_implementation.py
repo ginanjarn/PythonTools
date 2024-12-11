@@ -12,7 +12,6 @@ from typing import Optional, Dict, List, Callable
 
 import sublime
 
-from . import lsp_client
 from .constant import (
     COMMAND_PREFIX,
     LOGGING_CHANNEL,
@@ -24,6 +23,12 @@ from .document import (
     TextChange,
     path_to_uri,
     uri_to_path,
+)
+from .lsp_client import (
+    Transport,
+    StandardIO,
+    MethodName,
+    Response,
 )
 from .session import (
     Session,
@@ -111,7 +116,7 @@ class PyserverSession(Session):
 
     initialize_manager = InitializeManager()
 
-    def __init__(self, transport: lsp_client.Transport):
+    def __init__(self, transport: Transport):
         super().__init__(transport)
         self.diagnostic_manager = DiagnosticManager(
             DiagnosticReportSettings(show_panel=False)
@@ -119,7 +124,7 @@ class PyserverSession(Session):
         self._set_default_handler()
 
         # document target
-        self.action_target_map: Dict[lsp_client.MethodName, BufferedDocument] = {}
+        self.action_target_map: Dict[MethodName, BufferedDocument] = {}
 
         # workspace status
         self.workspace = Workspace()
@@ -190,8 +195,8 @@ class PyserverSession(Session):
             },
         )
 
-    def handle_initialize(self, params: dict):
-        if err := params.get("error"):
+    def handle_initialize(self, params: Response):
+        if err := params.error:
             print(err["message"])
             return
 
@@ -325,12 +330,12 @@ class PyserverSession(Session):
                 },
             )
 
-    def handle_textdocument_hover(self, params: dict):
+    def handle_textdocument_hover(self, params: Response):
         method = "textDocument/hover"
-        if err := params.get("error"):
+        if err := params.error:
             print(err["message"])
 
-        elif result := params.get("result"):
+        elif result := params.result:
             message = result["contents"]["value"]
             row, col = LineCharacter(**result["range"]["start"])
             self.action_target_map[method].show_popup(message, row, col)
@@ -366,12 +371,12 @@ class PyserverSession(Session):
             kind=kind,
         )
 
-    def handle_textdocument_completion(self, params: dict):
+    def handle_textdocument_completion(self, params: Response):
         method = "textDocument/completion"
-        if err := params.get("error"):
+        if err := params.error:
             print(err["message"])
 
-        elif result := params.get("result"):
+        elif result := params.result:
             items = [self._build_completion(item) for item in result["items"]]
             self.action_target_map[method].show_completion(items)
 
@@ -388,12 +393,12 @@ class PyserverSession(Session):
                 },
             )
 
-    def handle_textdocument_signaturehelp(self, params: dict):
+    def handle_textdocument_signaturehelp(self, params: Response):
         method = "textDocument/signatureHelp"
-        if err := params.get("error"):
+        if err := params.error:
             print(err["message"])
 
-        elif result := params.get("result"):
+        elif result := params.result:
             signatures = result["signatures"]
             if not signatures:
                 return
@@ -429,11 +434,11 @@ class PyserverSession(Session):
                 },
             )
 
-    def handle_textdocument_formatting(self, params: dict):
+    def handle_textdocument_formatting(self, params: Response):
         method = "textDocument/formatting"
-        if error := params.get("error"):
+        if error := params.error:
             print(error["message"])
-        elif result := params.get("result"):
+        elif result := params.result:
             changes = [rpc_to_textchange(c) for c in result]
             self.action_target_map[method].apply_changes(changes)
 
@@ -447,10 +452,10 @@ class PyserverSession(Session):
         else:
             return {"applied": True}
 
-    def handle_workspace_executecommand(self, params: dict) -> dict:
-        if error := params.get("error"):
+    def handle_workspace_executecommand(self, params: Response) -> dict:
+        if error := params.error:
             print(error["message"])
-        elif result := params.get("result"):
+        elif result := params.result:
             LOGGER.info(result)
 
         return None
@@ -474,11 +479,11 @@ class PyserverSession(Session):
         start_row, start_col = LineCharacter(**location["range"]["start"])
         return f"{file_name}:{start_row+1}:{start_col+1}"
 
-    def handle_textdocument_definition(self, params: dict):
+    def handle_textdocument_definition(self, params: Response):
         method = "textDocument/definition"
-        if error := params.get("error"):
+        if error := params.error:
             print(error["message"])
-        elif result := params.get("result"):
+        elif result := params.result:
             view = self.action_target_map[method].view
             locations = [self._build_location(l) for l in result]
             open_location(view, locations)
@@ -532,16 +537,16 @@ class PyserverSession(Session):
 
         input_text("rename", old_name, request_rename)
 
-    def handle_textdocument_preparerename(self, params: dict):
-        if error := params.get("error"):
+    def handle_textdocument_preparerename(self, params: Response):
+        if error := params.error:
             print(error["message"])
-        elif result := params.get("result"):
+        elif result := params.result:
             self._handle_preparerename(result)
 
-    def handle_textdocument_rename(self, params: dict):
-        if error := params.get("error"):
+    def handle_textdocument_rename(self, params: Response):
+        if error := params.error:
             print(error["message"])
-        elif result := params.get("result"):
+        elif result := params.result:
             WorkspaceEdit(self.workspace).apply_changes(result)
 
 
@@ -767,7 +772,7 @@ def get_session() -> Session:
 
     server_path = package_path.joinpath("pyserver")
     command = ["python", "-m", "pyserver", "-i"]
-    transport = lsp_client.StandardIO(command, server_path)
+    transport = StandardIO(command, server_path)
     return PyserverSession(transport)
 
 

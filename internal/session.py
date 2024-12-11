@@ -4,19 +4,20 @@ import threading
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import asdict
-from typing import Optional, List, Dict, Callable, Any
+from typing import Optional, List, Dict, Callable, Any, Union
 
 import sublime
 
 from .constant import PACKAGE_NAME, COMMAND_PREFIX
 from .document import TextChange
-from .lsp_client import Client, Handler, Transport, MethodName
+from .lsp_client import Client, Handler, Transport, MethodName, Response
 from .errors import MethodNotFound
 from .workspace import open_document
 
 PathEncodedStr = str
 """Path encoded '<file_name>:<row>:<column>'"""
-HandlerFunction = Callable[[str, dict], Any]
+Params = Union[Response, dict]
+HandlerFunction = Callable[[str, Params], Any]
 
 
 COMPLETION_KIND_MAP = defaultdict(
@@ -141,7 +142,7 @@ class Session(Command, Handler):
         self.handler_map: Dict[MethodName, HandlerFunction] = dict()
         self._run_server_lock = threading.Lock()
 
-    def handle(self, method: MethodName, params: dict) -> Optional[dict]:
+    def handle(self, method: MethodName, params: Params) -> Optional[Response]:
         """"""
         try:
             func = self.handler_map[method]
