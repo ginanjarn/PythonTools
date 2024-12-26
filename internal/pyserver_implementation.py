@@ -504,6 +504,11 @@ class PyserverSession(Session):
     @initialize_manager.must_initialized
     def textdocument_rename(self, view, row, col, new_name):
         method = "textDocument/rename"
+
+        # Save all changes before perform rename
+        for document in self.workspace.get_documents():
+            document.save()
+
         if document := self.workspace.get_document(view):
             self.action_target_map[method] = document
             self.client.send_request(
