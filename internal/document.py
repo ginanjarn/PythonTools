@@ -4,11 +4,8 @@ import logging
 import time
 from collections import namedtuple
 from dataclasses import dataclass, asdict
-from functools import lru_cache
 from pathlib import Path
 from typing import List, Tuple
-from urllib.parse import urlparse, unquote_plus
-from urllib.request import url2pathname
 
 import sublime
 
@@ -24,22 +21,6 @@ DocumentURI = str
 RowColIndex = namedtuple("RowColIndex", ["row", "column"])
 Span = Tuple[int, int]
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
-
-
-@lru_cache(128)
-def path_to_uri(path: PathStr) -> DocumentURI:
-    """convert path to uri"""
-    return Path(path).as_uri()
-
-
-@lru_cache(128)
-def uri_to_path(uri: DocumentURI) -> PathStr:
-    """convert uri to path"""
-    parsed = urlparse(uri)
-    if parsed.scheme != "file":
-        raise ValueError("url scheme must be 'file'")
-
-    return url2pathname(unquote_plus(parsed.path))
 
 
 def is_valid_document(view: sublime.View) -> bool:

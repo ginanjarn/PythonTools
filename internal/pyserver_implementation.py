@@ -21,6 +21,8 @@ from .document import (
     BufferedDocument,
     UnbufferedDocument,
     TextChange,
+)
+from .uri import (
     path_to_uri,
     uri_to_path,
 )
