@@ -3,19 +3,15 @@
 import threading
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from dataclasses import asdict
 from typing import Optional, List, Dict, Callable, Any, Union
 
 import sublime
 
-from .constant import PACKAGE_NAME, COMMAND_PREFIX
 from .document import TextChange
 from .lsp_client import Client, Handler, Transport, MethodName, Response
 from .errors import MethodNotFound
-from .workspace import open_document
 
-PathEncodedStr = str
-"""Path encoded '<file_name>:<row>:<column>'"""
+
 Params = Union[Response, dict]
 HandlerFunction = Callable[[str, Params], Any]
 
@@ -55,43 +51,6 @@ COMPLETION_KIND_MAP = defaultdict(
 def get_completion_kind(lsp_kind: int) -> int:
     """"""
     return COMPLETION_KIND_MAP[lsp_kind]
-
-
-class DiagnosticPanel:
-    OUTPUT_PANEL_NAME = f"{PACKAGE_NAME}_PANEL"
-    SETTINGS = {"gutter": False, "word_wrap": False}
-
-    def __init__(self):
-        self.panel: sublime.View = None
-
-    def _create_panel(self):
-        self.panel = sublime.active_window().create_output_panel(self.OUTPUT_PANEL_NAME)
-        self.panel.settings().update(self.SETTINGS)
-        self.panel.set_read_only(False)
-
-    def set_content(self, text: str):
-        if not (self.panel and self.panel.is_valid()):
-            self._create_panel()
-
-        start = (0, 0)
-        end = self.panel.rowcol(self.panel.size())
-
-        change = TextChange(start, end, text, -1)
-        self.panel.run_command(
-            f"{COMMAND_PREFIX}_apply_text_changes",
-            {"changes": [asdict(change)]},
-        )
-
-    def show(self) -> None:
-        """show output panel"""
-        sublime.active_window().run_command(
-            "show_panel", {"panel": f"output.{self.OUTPUT_PANEL_NAME}"}
-        )
-
-    def destroy(self):
-        """destroy output panel"""
-        for window in sublime.windows():
-            window.destroy_output_panel(self.OUTPUT_PANEL_NAME)
 
 
 class Command(ABC):
@@ -182,51 +141,3 @@ class Session(Command, Handler):
     def terminate(self) -> None:
         """terminate session"""
         self._terminate()
-
-
-def set_selection(view: sublime.View, regions: List[sublime.Region]):
-    """"""
-    view.sel().clear()
-    view.sel().add_all(regions)
-
-
-def open_location(current_view: sublime.View, locations: List[PathEncodedStr]) -> None:
-    """"""
-    current_selections = list(current_view.sel())
-    current_visible_region = current_view.visible_region()
-
-    locations = sorted(locations)
-
-    def open_location(index):
-        if index >= 0:
-            open_document(locations[index])
-            return
-
-        # else: revert to current state
-        current_view.window().focus_view(current_view)
-        set_selection(current_view, current_selections)
-        current_view.show(current_visible_region, show_surrounds=False)
-
-    def preview_location(index):
-        open_document(locations[index], preview=True)
-
-    sublime.active_window().show_quick_panel(
-        items=locations,
-        on_select=open_location,
-        flags=sublime.MONOSPACE_FONT,
-        on_highlight=preview_location,
-        placeholder="Open location...",
-    )
-
-
-def input_text(
-    title: str, default_text: str, on_done_callback: Callable[[str], None]
-) -> None:
-    """"""
-    sublime.active_window().show_input_panel(
-        caption=title,
-        initial_text=default_text,
-        on_done=on_done_callback,
-        on_change=None,
-        on_cancel=None,
-    )

@@ -32,13 +32,15 @@ from .lsp_client import (
     MethodName,
     Response,
 )
+from .panels import (
+    DiagnosticPanel,
+    input_text,
+    PathEncodedStr,
+    open_location,
+)
 from .session import (
     Session,
-    DiagnosticPanel,
     get_completion_kind,
-    input_text,
-    open_location,
-    PathEncodedStr,
 )
 from .sublime_settings import Settings
 from .workspace import (
