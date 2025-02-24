@@ -3,12 +3,12 @@
 import logging
 import threading
 
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 from dataclasses import dataclass
 from functools import wraps
 from html import escape as escape_html
 from pathlib import Path
-from typing import Optional, Dict, List, Callable
+from typing import Optional, Dict, List, Callable, Any, Union
 
 import sublime
 
@@ -22,11 +22,13 @@ from .document import (
     UnbufferedDocument,
     TextChange,
 )
+from .errors import MethodNotFound
 from .uri import (
     path_to_uri,
     uri_to_path,
 )
 from .lsp_client import (
+    Client,
     Transport,
     StandardIO,
     MethodName,
@@ -37,10 +39,6 @@ from .panels import (
     input_text,
     PathEncodedStr,
     open_location,
-)
-from .session import (
-    Session,
-    get_completion_kind,
 )
 from .sublime_settings import Settings
 from .workspace import (
@@ -54,6 +52,41 @@ from .workspace import (
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
 LineCharacter = namedtuple("LineCharacter", ["line", "character"])
 """Line Character namedtuple"""
+
+Params = Union[Response, dict]
+HandlerFunction = Callable[[str, Params], Any]
+
+
+COMPLETION_KIND_MAP = defaultdict(
+    lambda _: sublime.KIND_AMBIGUOUS,
+    {
+        1: (sublime.KindId.COLOR_ORANGISH, "t", ""),  # text
+        2: (sublime.KindId.FUNCTION, "", ""),  # method
+        3: (sublime.KindId.FUNCTION, "", ""),  # function
+        4: (sublime.KindId.FUNCTION, "c", ""),  # constructor
+        5: (sublime.KindId.VARIABLE, "", ""),  # field
+        6: (sublime.KindId.VARIABLE, "", ""),  # variable
+        7: (sublime.KindId.TYPE, "", ""),  # class
+        8: (sublime.KindId.TYPE, "", ""),  # interface
+        9: (sublime.KindId.NAMESPACE, "", ""),  # module
+        10: (sublime.KindId.VARIABLE, "", ""),  # property
+        11: (sublime.KindId.TYPE, "", ""),  # unit
+        12: (sublime.KindId.COLOR_ORANGISH, "v", ""),  # value
+        13: (sublime.KindId.TYPE, "", ""),  # enum
+        14: (sublime.KindId.KEYWORD, "", ""),  # keyword
+        15: (sublime.KindId.SNIPPET, "s", ""),  # snippet
+        16: (sublime.KindId.VARIABLE, "v", ""),  # color
+        17: (sublime.KindId.VARIABLE, "p", ""),  # file
+        18: (sublime.KindId.VARIABLE, "p", ""),  # reference
+        19: (sublime.KindId.VARIABLE, "p", ""),  # folder
+        20: (sublime.KindId.VARIABLE, "v", ""),  # enum member
+        21: (sublime.KindId.VARIABLE, "c", ""),  # constant
+        22: (sublime.KindId.TYPE, "", ""),  # struct
+        23: (sublime.KindId.TYPE, "e", ""),  # event
+        24: (sublime.KindId.KEYWORD, "", ""),  # operator
+        25: (sublime.KindId.TYPE, "", ""),  # type parameter
+    },
+)
 
 
 class InitializeManager:
@@ -115,13 +148,18 @@ class InitializeManager:
         return wrapper
 
 
-class PyserverSession(Session):
+class PyserverSession:
     """"""
 
     initialize_manager = InitializeManager()
 
     def __init__(self, transport: Transport):
-        super().__init__(transport)
+        self.client = Client(transport, self)
+
+        # server message handler
+        self.handler_map: Dict[MethodName, HandlerFunction] = dict()
+        self._run_server_lock = threading.Lock()
+
         self.diagnostic_manager = DiagnosticManager(
             DiagnosticReportSettings(show_panel=False)
         )
@@ -133,11 +171,52 @@ class PyserverSession(Session):
         # workspace status
         self.workspace = Workspace()
 
-    def _reset_state(self) -> None:
+    def handle(self, method: MethodName, params: Params) -> Optional[Response]:
+        """"""
+        try:
+            func = self.handler_map[method]
+        except KeyError as err:
+            raise MethodNotFound(err)
+
+        return func(params)
+
+    def register_handler(self, method: MethodName, function: HandlerFunction) -> None:
+        """"""
+        self.handler_map[method] = function
+
+    def run_server(self, env: Optional[dict] = None) -> None:
+        """"""
+        # only one thread can run server
+        if self._run_server_lock.locked():
+            return
+
+        with self._run_server_lock:
+            if not self.client.is_server_running():
+                sublime.status_message("running language server...")
+                # sometimes the server stop working
+                # we must reset the state before run server
+                self.reset_state()
+
+                self.client.run_server(env)
+                self.client.listen()
+
+    def reset_state(self) -> None:
+        """reset session state"""
         self.workspace.reset()
         self.action_target_map.clear()
         self.initialize_manager.reset()
         self.diagnostic_manager.reset()
+
+    def is_ready(self) -> bool:
+        """check session is ready"""
+        return (
+            self.client.is_server_running() and self.initialize_manager.is_initialized()
+        )
+
+    def terminate(self) -> None:
+        """terminate session"""
+        self.client.terminate_server()
+        self._reset_state()
 
     def _set_default_handler(self):
         default_handlers = {
@@ -159,16 +238,6 @@ class PyserverSession(Session):
             "textDocument/rename": self.handle_textdocument_rename,
         }
         self.handler_map.update(default_handlers)
-
-    def _is_ready(self) -> bool:
-        return (
-            self.client.is_server_running() and self.initialize_manager.is_initialized()
-        )
-
-    def _terminate(self):
-        """"""
-        self.client.terminate_server()
-        self._reset_state()
 
     def initialize(self, view: sublime.View):
         # cancel if initializing
@@ -366,7 +435,7 @@ class PyserverSession(Session):
             insert_text = text
 
         signature = completion_item["detail"]
-        kind = get_completion_kind(completion_item["kind"])
+        kind = COMPLETION_KIND_MAP[completion_item["kind"]]
 
         return sublime.CompletionItem.snippet_completion(
             trigger=text,
@@ -775,7 +844,7 @@ class WorkspaceEdit:
         delete_document(file_name)
 
 
-def get_session() -> Session:
+def get_session() -> PyserverSession:
     """"""
     package_path = Path(sublime.packages_path(), PACKAGE_NAME)
 
