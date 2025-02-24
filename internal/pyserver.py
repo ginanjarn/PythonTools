@@ -53,8 +53,8 @@ LOGGER = logging.getLogger(LOGGING_CHANNEL)
 LineCharacter = namedtuple("LineCharacter", ["line", "character"])
 """Line Character namedtuple"""
 
-Params = Union[Response, dict]
-HandlerFunction = Callable[[str, Params], Any]
+HandleParams = Union[Response, dict]
+HandlerFunction = Callable[[Session, HandleParams], Any]
 
 
 COMPLETION_KIND_MAP = defaultdict(
@@ -168,14 +168,14 @@ class PyserverClient(Client):
         # session data
         self.session = Session()
 
-    def handle(self, method: MethodName, params: Params) -> Optional[Response]:
+    def handle(self, method: MethodName, params: HandleParams) -> Optional[Response]:
         """"""
         try:
             func = self.handler_map[method]
         except KeyError as err:
             raise MethodNotFound(err)
 
-        return func(params)
+        return func(self.session, params)
 
     def register_handler(self, method: MethodName, function: HandlerFunction) -> None:
         """"""
@@ -263,7 +263,7 @@ class PyserverClient(Client):
             },
         )
 
-    def handle_initialize(self, params: Response):
+    def handle_initialize(self, session: Session, params: Response):
         if err := params.error:
             print(err["message"])
             return
@@ -271,10 +271,10 @@ class PyserverClient(Client):
         self.send_notification("initialized", {})
         self.initialize_manager.initialize()
 
-    def handle_window_logmessage(self, params: dict):
+    def handle_window_logmessage(self, session: Session, params: dict):
         print(params["message"])
 
-    def handle_window_showmessage(self, params: dict):
+    def handle_window_showmessage(self, session: Session, params: dict):
         sublime.status_message(params["message"])
 
     @initialize_manager.wait_initialized
@@ -398,7 +398,7 @@ class PyserverClient(Client):
                 },
             )
 
-    def handle_textdocument_hover(self, params: Response):
+    def handle_textdocument_hover(self, session: Session, params: Response):
         method = "textDocument/hover"
         if err := params.error:
             print(err["message"])
@@ -406,7 +406,7 @@ class PyserverClient(Client):
         elif result := params.result:
             message = result["contents"]["value"]
             row, col = LineCharacter(**result["range"]["start"])
-            self.session.action_target[method].show_popup(message, row, col)
+            session.action_target[method].show_popup(message, row, col)
 
     @initialize_manager.must_initialized
     def textdocument_completion(self, view, row, col):
@@ -439,14 +439,14 @@ class PyserverClient(Client):
             kind=kind,
         )
 
-    def handle_textdocument_completion(self, params: Response):
+    def handle_textdocument_completion(self, session: Session, params: Response):
         method = "textDocument/completion"
         if err := params.error:
             print(err["message"])
 
         elif result := params.result:
             items = [self._build_completion(item) for item in result["items"]]
-            self.session.action_target[method].show_completion(items)
+            session.action_target[method].show_completion(items)
 
     @initialize_manager.must_initialized
     def textdocument_signaturehelp(self, view, row, col):
@@ -461,7 +461,7 @@ class PyserverClient(Client):
                 },
             )
 
-    def handle_textdocument_signaturehelp(self, params: Response):
+    def handle_textdocument_signaturehelp(self, session: Session, params: Response):
         method = "textDocument/signatureHelp"
         if err := params.error:
             print(err["message"])
@@ -478,15 +478,15 @@ class PyserverClient(Client):
                     "\n```",
                 ]
             )
-            view = self.session.action_target[method].view
+            view = session.action_target[method].view
             row, col = view.rowcol(view.sel()[0].a)
-            self.session.action_target[method].show_popup(message, row, col)
+            session.action_target[method].show_popup(message, row, col)
 
-    def handle_textdocument_publishdiagnostics(self, params: dict):
+    def handle_textdocument_publishdiagnostics(self, session: Session, params: dict):
         file_name = uri_to_path(params["uri"])
         diagnostics = params["diagnostics"]
 
-        for document in self.session.get_documents(file_name):
+        for document in session.get_documents(file_name):
             self.diagnostic_manager.set(document.view, diagnostics)
 
     @initialize_manager.must_initialized
@@ -502,17 +502,17 @@ class PyserverClient(Client):
                 },
             )
 
-    def handle_textdocument_formatting(self, params: Response):
+    def handle_textdocument_formatting(self, session: Session, params: Response):
         method = "textDocument/formatting"
         if error := params.error:
             print(error["message"])
         elif result := params.result:
             changes = [rpc_to_textchange(c) for c in result]
-            self.session.action_target[method].apply_changes(changes)
+            session.action_target[method].apply_changes(changes)
 
-    def handle_workspace_applyedit(self, params: dict) -> dict:
+    def handle_workspace_applyedit(self, session: Session, params: dict) -> dict:
         try:
-            WorkspaceEdit(self.session).apply_changes(params["edit"])
+            WorkspaceEdit(session).apply_changes(params["edit"])
 
         except Exception as err:
             LOGGER.error(err, exc_info=True)
@@ -520,7 +520,9 @@ class PyserverClient(Client):
         else:
             return {"applied": True}
 
-    def handle_workspace_executecommand(self, params: Response) -> dict:
+    def handle_workspace_executecommand(
+        self, session: Session, params: Response
+    ) -> dict:
         if error := params.error:
             print(error["message"])
         elif result := params.result:
@@ -547,12 +549,12 @@ class PyserverClient(Client):
         start_row, start_col = LineCharacter(**location["range"]["start"])
         return f"{file_name}:{start_row+1}:{start_col+1}"
 
-    def handle_textdocument_definition(self, params: Response):
+    def handle_textdocument_definition(self, session: Session, params: Response):
         method = "textDocument/definition"
         if error := params.error:
             print(error["message"])
         elif result := params.result:
-            view = self.session.action_target[method].view
+            view = session.action_target[method].view
             locations = [self._build_location(l) for l in result]
             open_location(view, locations)
 
@@ -588,9 +590,9 @@ class PyserverClient(Client):
                 },
             )
 
-    def _handle_preparerename(self, location: dict):
+    def _handle_preparerename(self, session: Session, location: dict):
         method = "textDocument/prepareRename"
-        view = self.session.action_target[method].view
+        view = session.action_target[method].view
 
         start = LineCharacter(**location["range"]["start"])
         end = LineCharacter(**location["range"]["end"])
@@ -610,17 +612,17 @@ class PyserverClient(Client):
 
         input_text("rename", old_name, request_rename)
 
-    def handle_textdocument_preparerename(self, params: Response):
+    def handle_textdocument_preparerename(self, session: Session, params: Response):
         if error := params.error:
             print(error["message"])
         elif result := params.result:
-            self._handle_preparerename(result)
+            self._handle_preparerename(session, result)
 
-    def handle_textdocument_rename(self, params: Response):
+    def handle_textdocument_rename(self, session: Session, params: Response):
         if error := params.error:
             print(error["message"])
         elif result := params.result:
-            WorkspaceEdit(self.session).apply_changes(result)
+            WorkspaceEdit(session).apply_changes(result)
 
 
 def textchange_to_rpc(text_change: TextChange) -> dict:
