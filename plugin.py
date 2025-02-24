@@ -9,14 +9,13 @@ from sublime import HoverZone
 
 from .internal.constant import LOGGING_CHANNEL
 from .internal import plugin_implementation as plugin_impl
-from .internal.session import Session
-from .internal.pyserver_implementation import get_session
+from .internal.pyserver import get_client
 from .internal.sublime_settings import Settings
 from .internal.document import is_valid_document
 
 
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
-SESSION: Session = get_session()
+CLIENT = get_client()
 
 
 def setup_logger(level: int):
@@ -49,8 +48,8 @@ def plugin_loaded():
 
 def plugin_unloaded():
     """executed before plugin unloaded"""
-    if SESSION:
-        SESSION.terminate()
+    if CLIENT:
+        CLIENT.terminate()
 
 
 class PythonToolsOpenEventListener(
@@ -59,7 +58,7 @@ class PythonToolsOpenEventListener(
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.session = SESSION
+        self.client = CLIENT
 
     def on_activated_async(self, view: sublime.View):
         self._on_activated_async(view)
@@ -80,7 +79,7 @@ class PythonToolsSaveEventListener(
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.session = SESSION
+        self.client = CLIENT
 
     def on_post_save_async(self, view: sublime.View):
         self._on_post_save_async(view)
@@ -92,7 +91,7 @@ class PythonToolsCloseEventListener(
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.session = SESSION
+        self.client = CLIENT
 
     def on_close(self, view: sublime.View):
         self._on_close(view)
@@ -103,7 +102,7 @@ class PythonToolsTextChangeListener(
 ):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.session = SESSION
+        self.client = CLIENT
 
     def on_text_changed(self, changes: List[sublime.TextChange]):
         self._on_text_changed(changes)
@@ -115,7 +114,7 @@ class PythonToolsCompletionEventListener(
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.session = SESSION
+        self.client = CLIENT
 
     def on_query_completions(
         self, view: sublime.View, prefix: str, locations: List[int]
@@ -128,7 +127,7 @@ class PythonToolsHoverEventListener(
 ):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.session = SESSION
+        self.client = CLIENT
 
     def on_hover(self, view: sublime.View, point: int, hover_zone: HoverZone):
         self._on_hover(view, point, hover_zone)
@@ -139,7 +138,7 @@ class PythonToolsDocumentSignatureHelpCommand(
 ):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.session = SESSION
+        self.client = CLIENT
 
     def run(self, edit: sublime.Edit, point: int):
         self._run(edit, point)
@@ -153,7 +152,7 @@ class PythonToolsDocumentFormattingCommand(
 ):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.session = SESSION
+        self.client = CLIENT
 
     def run(self, edit: sublime.Edit):
         self._run(edit)
@@ -167,7 +166,7 @@ class PythonToolsGotoDefinitionCommand(
 ):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.session = SESSION
+        self.client = CLIENT
 
     def run(
         self,
@@ -191,7 +190,7 @@ class PythonToolsPrepareRenameCommand(
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.session = SESSION
+        self.client = CLIENT
 
     def run(self, edit: sublime.Edit, event: Optional[dict] = None):
         self._run(edit, event)
@@ -207,7 +206,7 @@ class PythonToolsRenameCommand(sublime_plugin.TextCommand, plugin_impl.RenameCom
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.session = SESSION
+        self.client = CLIENT
 
     def run(self, edit: sublime.Edit, row: int, column: int, new_name: str):
         self._run(edit, row, column, new_name)
@@ -229,11 +228,11 @@ class PythonToolsTerminateCommand(sublime_plugin.WindowCommand):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.session = SESSION
+        self.client = CLIENT
 
     def run(self):
-        if self.session:
-            self.session.terminate()
+        if self.client:
+            self.client.terminate()
 
     def is_visible(self):
-        return self.session and self.session.is_ready()
+        return self.client and self.client.is_ready()

@@ -148,13 +148,13 @@ class InitializeManager:
         return wrapper
 
 
-class PyserverSession:
+class PyserverClient(Client):
     """"""
 
     initialize_manager = InitializeManager()
 
     def __init__(self, transport: Transport):
-        self.client = Client(transport, self)
+        super().__init__(transport, self)
 
         # server message handler
         self.handler_map: Dict[MethodName, HandlerFunction] = dict()
@@ -184,21 +184,21 @@ class PyserverSession:
         """"""
         self.handler_map[method] = function
 
-    def run_server(self, env: Optional[dict] = None) -> None:
+    def start_server(self, env: Optional[dict] = None) -> None:
         """"""
         # only one thread can run server
         if self._run_server_lock.locked():
             return
 
         with self._run_server_lock:
-            if not self.client.is_server_running():
+            if not self.is_server_running():
                 sublime.status_message("running language server...")
                 # sometimes the server stop working
                 # we must reset the state before run server
                 self.reset_state()
 
-                self.client.run_server(env)
-                self.client.listen()
+                self.run_server(env)
+                self.listen()
 
     def reset_state(self) -> None:
         """reset session state"""
@@ -209,13 +209,11 @@ class PyserverSession:
 
     def is_ready(self) -> bool:
         """check session is ready"""
-        return (
-            self.client.is_server_running() and self.initialize_manager.is_initialized()
-        )
+        return self.is_server_running() and self.initialize_manager.is_initialized()
 
     def terminate(self) -> None:
         """terminate session"""
-        self.client.terminate_server()
+        self.terminate_server()
         self._reset_state()
 
     def _set_default_handler(self):
@@ -253,7 +251,7 @@ class PyserverSession:
             return
 
         self.initialize_manager.set_initializing()
-        self.client.send_request(
+        self.send_request(
             "initialize",
             {
                 "rootPath": workspace_path,
@@ -273,7 +271,7 @@ class PyserverSession:
             print(err["message"])
             return
 
-        self.client.send_notification("initialized", {})
+        self.send_notification("initialized", {})
         self.initialize_manager.initialize()
 
     def handle_window_logmessage(self, params: dict):
@@ -306,7 +304,7 @@ class PyserverSession:
         # Document maybe opened in multiple 'View', send notification
         # only on first opening document.
         if len(self.workspace.get_documents(file_name)) == 1:
-            self.client.send_notification(
+            self.send_notification(
                 "textDocument/didOpen",
                 {
                     "textDocument": {
@@ -321,7 +319,7 @@ class PyserverSession:
     @initialize_manager.must_initialized
     def textdocument_didsave(self, view: sublime.View):
         if document := self.workspace.get_document(view):
-            self.client.send_notification(
+            self.send_notification(
                 "textDocument/didSave",
                 {"textDocument": {"uri": path_to_uri(document.file_name)}},
             )
@@ -342,7 +340,7 @@ class PyserverSession:
             if self.workspace.get_documents(file_name):
                 return
 
-            self.client.send_notification(
+            self.send_notification(
                 "textDocument/didClose",
                 {"textDocument": {"uri": path_to_uri(document.file_name)}},
             )
@@ -354,7 +352,7 @@ class PyserverSession:
         # in other view and the argument view not assigned.
         file_name = view.file_name()
         if document := self.workspace.get_document_by_name(file_name):
-            self.client.send_notification(
+            self.send_notification(
                 "textDocument/didChange",
                 {
                     "contentChanges": [textchange_to_rpc(c) for c in changes],
@@ -395,7 +393,7 @@ class PyserverSession:
                 return
 
             self.action_target_map[method] = document
-            self.client.send_request(
+            self.send_request(
                 method,
                 {
                     "position": {"character": col, "line": row},
@@ -418,7 +416,7 @@ class PyserverSession:
         method = "textDocument/completion"
         if document := self.workspace.get_document(view):
             self.action_target_map[method] = document
-            self.client.send_request(
+            self.send_request(
                 method,
                 {
                     "position": {"character": col, "line": row},
@@ -458,7 +456,7 @@ class PyserverSession:
         method = "textDocument/signatureHelp"
         if document := self.workspace.get_document(view):
             self.action_target_map[method] = document
-            self.client.send_request(
+            self.send_request(
                 method,
                 {
                     "position": {"character": col, "line": row},
@@ -499,7 +497,7 @@ class PyserverSession:
         method = "textDocument/formatting"
         if document := self.workspace.get_document(view):
             self.action_target_map[method] = document
-            self.client.send_request(
+            self.send_request(
                 method,
                 {
                     "options": {"insertSpaces": True, "tabSize": 2},
@@ -538,7 +536,7 @@ class PyserverSession:
         method = "textDocument/definition"
         if document := self.workspace.get_document(view):
             self.action_target_map[method] = document
-            self.client.send_request(
+            self.send_request(
                 method,
                 {
                     "position": {"character": col, "line": row},
@@ -566,7 +564,7 @@ class PyserverSession:
         method = "textDocument/prepareRename"
         if document := self.workspace.get_document(view):
             self.action_target_map[method] = document
-            self.client.send_request(
+            self.send_request(
                 method,
                 {
                     "position": {"character": col, "line": row},
@@ -584,7 +582,7 @@ class PyserverSession:
 
         if document := self.workspace.get_document(view):
             self.action_target_map[method] = document
-            self.client.send_request(
+            self.send_request(
                 method,
                 {
                     "newName": new_name,
@@ -844,14 +842,14 @@ class WorkspaceEdit:
         delete_document(file_name)
 
 
-def get_session() -> PyserverSession:
+def get_client() -> PyserverClient:
     """"""
     package_path = Path(sublime.packages_path(), PACKAGE_NAME)
 
     server_path = package_path.joinpath("pyserver")
     command = ["python", "-m", "pyserver", "-i"]
     transport = StandardIO(command, server_path)
-    return PyserverSession(transport)
+    return PyserverClient(transport)
 
 
 def get_envs_settings() -> Optional[dict]:
