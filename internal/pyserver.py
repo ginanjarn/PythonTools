@@ -165,9 +165,6 @@ class PyserverClient(Client):
         )
         self._set_default_handler()
 
-        # document target
-        self.action_target_map: Dict[MethodName, BufferedDocument] = {}
-
         # session data
         self.session = Session()
 
@@ -203,7 +200,7 @@ class PyserverClient(Client):
     def reset_state(self) -> None:
         """reset session state"""
         self.session.reset()
-        self.action_target_map.clear()
+        self.session.action_target.clear()
         self.initialize_manager.reset()
         self.diagnostic_manager.reset()
 
@@ -384,7 +381,7 @@ class PyserverClient(Client):
         method = "textDocument/hover"
         # In multi row/column layout, new popup will created in current View,
         # but active popup doesn't discarded.
-        if other := self.action_target_map.get(method):
+        if other := self.session.action_target.get(method):
             other.view.hide_popup()
 
         if document := self.session.get_document(view):
@@ -392,7 +389,7 @@ class PyserverClient(Client):
                 document.show_popup(message, row, col)
                 return
 
-            self.action_target_map[method] = document
+            self.session.action_target[method] = document
             self.send_request(
                 method,
                 {
@@ -409,13 +406,13 @@ class PyserverClient(Client):
         elif result := params.result:
             message = result["contents"]["value"]
             row, col = LineCharacter(**result["range"]["start"])
-            self.action_target_map[method].show_popup(message, row, col)
+            self.session.action_target[method].show_popup(message, row, col)
 
     @initialize_manager.must_initialized
     def textdocument_completion(self, view, row, col):
         method = "textDocument/completion"
         if document := self.session.get_document(view):
-            self.action_target_map[method] = document
+            self.session.action_target[method] = document
             self.send_request(
                 method,
                 {
@@ -449,13 +446,13 @@ class PyserverClient(Client):
 
         elif result := params.result:
             items = [self._build_completion(item) for item in result["items"]]
-            self.action_target_map[method].show_completion(items)
+            self.session.action_target[method].show_completion(items)
 
     @initialize_manager.must_initialized
     def textdocument_signaturehelp(self, view, row, col):
         method = "textDocument/signatureHelp"
         if document := self.session.get_document(view):
-            self.action_target_map[method] = document
+            self.session.action_target[method] = document
             self.send_request(
                 method,
                 {
@@ -481,9 +478,9 @@ class PyserverClient(Client):
                     "\n```",
                 ]
             )
-            view = self.action_target_map[method].view
+            view = self.session.action_target[method].view
             row, col = view.rowcol(view.sel()[0].a)
-            self.action_target_map[method].show_popup(message, row, col)
+            self.session.action_target[method].show_popup(message, row, col)
 
     def handle_textdocument_publishdiagnostics(self, params: dict):
         file_name = uri_to_path(params["uri"])
@@ -496,7 +493,7 @@ class PyserverClient(Client):
     def textdocument_formatting(self, view):
         method = "textDocument/formatting"
         if document := self.session.get_document(view):
-            self.action_target_map[method] = document
+            self.session.action_target[method] = document
             self.send_request(
                 method,
                 {
@@ -511,7 +508,7 @@ class PyserverClient(Client):
             print(error["message"])
         elif result := params.result:
             changes = [rpc_to_textchange(c) for c in result]
-            self.action_target_map[method].apply_changes(changes)
+            self.session.action_target[method].apply_changes(changes)
 
     def handle_workspace_applyedit(self, params: dict) -> dict:
         try:
@@ -535,7 +532,7 @@ class PyserverClient(Client):
     def textdocument_definition(self, view, row, col):
         method = "textDocument/definition"
         if document := self.session.get_document(view):
-            self.action_target_map[method] = document
+            self.session.action_target[method] = document
             self.send_request(
                 method,
                 {
@@ -555,7 +552,7 @@ class PyserverClient(Client):
         if error := params.error:
             print(error["message"])
         elif result := params.result:
-            view = self.action_target_map[method].view
+            view = self.session.action_target[method].view
             locations = [self._build_location(l) for l in result]
             open_location(view, locations)
 
@@ -563,7 +560,7 @@ class PyserverClient(Client):
     def textdocument_preparerename(self, view, row, col):
         method = "textDocument/prepareRename"
         if document := self.session.get_document(view):
-            self.action_target_map[method] = document
+            self.session.action_target[method] = document
             self.send_request(
                 method,
                 {
@@ -581,7 +578,7 @@ class PyserverClient(Client):
             document.save()
 
         if document := self.session.get_document(view):
-            self.action_target_map[method] = document
+            self.session.action_target[method] = document
             self.send_request(
                 method,
                 {
@@ -593,7 +590,7 @@ class PyserverClient(Client):
 
     def _handle_preparerename(self, location: dict):
         method = "textDocument/prepareRename"
-        view = self.action_target_map[method].view
+        view = self.session.action_target[method].view
 
         start = LineCharacter(**location["range"]["start"])
         end = LineCharacter(**location["range"]["end"])

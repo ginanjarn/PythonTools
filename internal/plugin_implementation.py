@@ -154,7 +154,7 @@ class CompletionEventListener:
             return None
 
         if (
-            document := self.client.action_target_map.get("textDocument/completion")
+            document := self.client.session.action_target.get("textDocument/completion")
         ) and document.is_completion_available():
 
             items = document.pop_completion()

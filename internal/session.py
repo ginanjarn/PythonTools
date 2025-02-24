@@ -10,6 +10,7 @@ from .constant import LOGGING_CHANNEL
 from .document import BufferedDocument
 
 
+MethodName = str
 PathStr = str
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
 
@@ -24,6 +25,9 @@ class Session:
         # and some times the 'View' is invalid.
         self.working_documents: Dict[sublime.View, BufferedDocument] = {}
         self._lock = threading.Lock()
+
+        # Target document where result applied, e.g: completion result.
+        self.action_target: Dict[MethodName, BufferedDocument] = {}
 
     def reset(self):
         """"""
