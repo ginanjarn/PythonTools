@@ -40,9 +40,9 @@ from .panels import (
     PathEncodedStr,
     open_location,
 )
+from .session import Session
 from .sublime_settings import Settings
 from .workspace import (
-    Workspace,
     get_workspace_path,
     create_document,
     rename_document,
@@ -168,8 +168,8 @@ class PyserverClient(Client):
         # document target
         self.action_target_map: Dict[MethodName, BufferedDocument] = {}
 
-        # workspace status
-        self.workspace = Workspace()
+        # session data
+        self.session = Session()
 
     def handle(self, method: MethodName, params: Params) -> Optional[Response]:
         """"""
@@ -202,7 +202,7 @@ class PyserverClient(Client):
 
     def reset_state(self) -> None:
         """reset session state"""
-        self.workspace.reset()
+        self.session.reset()
         self.action_target_map.clear()
         self.initialize_manager.reset()
         self.diagnostic_manager.reset()
@@ -289,7 +289,7 @@ class PyserverClient(Client):
         file_name = view.file_name()
         self.diagnostic_manager.set_active_view(view)
 
-        if opened_document := self.workspace.get_document(view):
+        if opened_document := self.session.get_document(view):
             if opened_document.file_name == file_name and (not reload):
                 return
 
@@ -299,11 +299,11 @@ class PyserverClient(Client):
             self.textdocument_didclose(view)
 
         document = BufferedDocument(view)
-        self.workspace.add_document(document)
+        self.session.add_document(document)
 
         # Document maybe opened in multiple 'View', send notification
         # only on first opening document.
-        if len(self.workspace.get_documents(file_name)) == 1:
+        if len(self.session.get_documents(file_name)) == 1:
             self.send_notification(
                 "textDocument/didOpen",
                 {
@@ -318,7 +318,7 @@ class PyserverClient(Client):
 
     @initialize_manager.must_initialized
     def textdocument_didsave(self, view: sublime.View):
-        if document := self.workspace.get_document(view):
+        if document := self.session.get_document(view):
             self.send_notification(
                 "textDocument/didSave",
                 {"textDocument": {"uri": path_to_uri(document.file_name)}},
@@ -333,11 +333,11 @@ class PyserverClient(Client):
         file_name = view.file_name()
         self.diagnostic_manager.remove(view)
 
-        if document := self.workspace.get_document(view):
-            self.workspace.remove_document(view)
+        if document := self.session.get_document(view):
+            self.session.remove_document(view)
 
             # if document still opened in other View
-            if self.workspace.get_documents(file_name):
+            if self.session.get_documents(file_name):
                 return
 
             self.send_notification(
@@ -351,7 +351,7 @@ class PyserverClient(Client):
         # Use get_document_by_name() because may be document already open
         # in other view and the argument view not assigned.
         file_name = view.file_name()
-        if document := self.workspace.get_document_by_name(file_name):
+        if document := self.session.get_document_by_name(file_name):
             self.send_notification(
                 "textDocument/didChange",
                 {
@@ -387,7 +387,7 @@ class PyserverClient(Client):
         if other := self.action_target_map.get(method):
             other.view.hide_popup()
 
-        if document := self.workspace.get_document(view):
+        if document := self.session.get_document(view):
             if message := self._get_diagnostic_message(view, row, col):
                 document.show_popup(message, row, col)
                 return
@@ -414,7 +414,7 @@ class PyserverClient(Client):
     @initialize_manager.must_initialized
     def textdocument_completion(self, view, row, col):
         method = "textDocument/completion"
-        if document := self.workspace.get_document(view):
+        if document := self.session.get_document(view):
             self.action_target_map[method] = document
             self.send_request(
                 method,
@@ -454,7 +454,7 @@ class PyserverClient(Client):
     @initialize_manager.must_initialized
     def textdocument_signaturehelp(self, view, row, col):
         method = "textDocument/signatureHelp"
-        if document := self.workspace.get_document(view):
+        if document := self.session.get_document(view):
             self.action_target_map[method] = document
             self.send_request(
                 method,
@@ -489,13 +489,13 @@ class PyserverClient(Client):
         file_name = uri_to_path(params["uri"])
         diagnostics = params["diagnostics"]
 
-        for document in self.workspace.get_documents(file_name):
+        for document in self.session.get_documents(file_name):
             self.diagnostic_manager.set(document.view, diagnostics)
 
     @initialize_manager.must_initialized
     def textdocument_formatting(self, view):
         method = "textDocument/formatting"
-        if document := self.workspace.get_document(view):
+        if document := self.session.get_document(view):
             self.action_target_map[method] = document
             self.send_request(
                 method,
@@ -515,7 +515,7 @@ class PyserverClient(Client):
 
     def handle_workspace_applyedit(self, params: dict) -> dict:
         try:
-            WorkspaceEdit(self.workspace).apply_changes(params["edit"])
+            WorkspaceEdit(self.session).apply_changes(params["edit"])
 
         except Exception as err:
             LOGGER.error(err, exc_info=True)
@@ -534,7 +534,7 @@ class PyserverClient(Client):
     @initialize_manager.must_initialized
     def textdocument_definition(self, view, row, col):
         method = "textDocument/definition"
-        if document := self.workspace.get_document(view):
+        if document := self.session.get_document(view):
             self.action_target_map[method] = document
             self.send_request(
                 method,
@@ -562,7 +562,7 @@ class PyserverClient(Client):
     @initialize_manager.must_initialized
     def textdocument_preparerename(self, view, row, col):
         method = "textDocument/prepareRename"
-        if document := self.workspace.get_document(view):
+        if document := self.session.get_document(view):
             self.action_target_map[method] = document
             self.send_request(
                 method,
@@ -577,10 +577,10 @@ class PyserverClient(Client):
         method = "textDocument/rename"
 
         # Save all changes before perform rename
-        for document in self.workspace.get_documents():
+        for document in self.session.get_documents():
             document.save()
 
-        if document := self.workspace.get_document(view):
+        if document := self.session.get_document(view):
             self.action_target_map[method] = document
             self.send_request(
                 method,
@@ -623,7 +623,7 @@ class PyserverClient(Client):
         if error := params.error:
             print(error["message"])
         elif result := params.result:
-            WorkspaceEdit(self.workspace).apply_changes(result)
+            WorkspaceEdit(self.session).apply_changes(result)
 
 
 def textchange_to_rpc(text_change: TextChange) -> dict:
@@ -788,8 +788,8 @@ class DiagnosticManager:
 
 class WorkspaceEdit:
 
-    def __init__(self, workspace_: Workspace):
-        self.workspace = workspace_
+    def __init__(self, session: Session):
+        self.session = session
 
     def apply_changes(self, edit_changes: dict) -> None:
         """"""
@@ -810,7 +810,7 @@ class WorkspaceEdit:
         edits = document_changes["edits"]
         changes = [rpc_to_textchange(c) for c in edits]
 
-        document = self.workspace.get_document_by_name(
+        document = self.session.get_document_by_name(
             file_name, UnbufferedDocument(file_name)
         )
         document.apply_changes(changes)

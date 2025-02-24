@@ -1,75 +1,11 @@
 """Workspace module"""
 
-import logging
-import threading
-from collections import namedtuple
 from pathlib import Path
-from typing import Dict, List, Any, Optional
 
 import sublime
 
-from .constant import LOGGING_CHANNEL
-from .document import BufferedDocument
 
 PathStr = str
-RowColIndex = namedtuple("RowColIndex", ["row", "column"])
-LOGGER = logging.getLogger(LOGGING_CHANNEL)
-
-
-class Workspace:
-    def __init__(self):
-        # Map document by view is easier to track if view is valid.
-        # If we map by file name, one document my related to multiple 'View'
-        # and some times the 'View' is invalid.
-        self.documents: Dict[sublime.View, BufferedDocument] = {}
-        self._lock = threading.Lock()
-
-    def reset(self):
-        """"""
-        with self._lock:
-            self.documents.clear()
-
-    def get_document(
-        self, view: sublime.View, /, default: Any = None
-    ) -> Optional[BufferedDocument]:
-        with self._lock:
-            return self.documents.get(view, default)
-
-    def add_document(self, document: BufferedDocument):
-        with self._lock:
-            self.documents[document.view] = document
-
-    def remove_document(self, view: sublime.View):
-        with self._lock:
-            try:
-                del self.documents[view]
-            except KeyError as err:
-                LOGGER.debug("document not found %s", err)
-                pass
-
-    def get_document_by_name(
-        self, file_name: PathStr, /, default: Any = None
-    ) -> Optional[BufferedDocument]:
-        """get document by name"""
-
-        with self._lock:
-            for view, document in self.documents.items():
-                if view.file_name() == file_name:
-                    return document
-            return default
-
-    def get_documents(
-        self, file_name: Optional[PathStr] = None
-    ) -> List[BufferedDocument]:
-        """get documents.
-        If file_name assigned, return documents with file_name filtered.
-        """
-        with self._lock:
-            if not file_name:
-                return [doc for _, doc in self.documents.items()]
-            return [
-                doc for _, doc in self.documents.items() if doc.file_name == file_name
-            ]
 
 
 def get_workspace_path(view: sublime.View, return_parent: bool = True) -> str:
