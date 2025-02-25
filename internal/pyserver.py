@@ -5,6 +5,7 @@ import threading
 
 from collections import namedtuple, defaultdict
 from dataclasses import dataclass
+from enum import Enum
 from functools import wraps
 from html import escape as escape_html
 from pathlib import Path
@@ -89,40 +90,43 @@ COMPLETION_KIND_MAP = defaultdict(
 )
 
 
+class InitStatus(Enum):
+    NotInitialized = 0
+    Initializing = 1
+    Initialized = 2
+
+
 class InitializeManager:
     """"""
 
     def __init__(self):
         self.initialize_event = threading.Event()
-        self._is_initializing = False
-        self._is_initialized = False
+        self.status: InitStatus = InitStatus.NotInitialized
 
     def reset(self):
         self.initialize_event.clear()
-        self._is_initializing = False
-        self._is_initialized = False
+        self.status = InitStatus.NotInitialized
 
     def set_initializing(self, status: bool = True) -> None:
         """"""
-        self._is_initializing = status
+        self.status = InitStatus.Initializing
 
     def is_initializing(self) -> bool:
         """"""
-        return self._is_initializing
+        return self.status == InitStatus.Initializing
 
     def is_initialized(self) -> bool:
         """"""
-        return self._is_initialized
+        return self.status == InitStatus.Initialized
 
     def initialize(self) -> None:
         """initialie session"""
         self.initialize_event.set()
-        self._is_initializing = False
-        self._is_initialized = True
+        self.status = InitStatus.Initialized
 
     def uninitialize(self) -> None:
         """done session"""
-        self._is_initialized = False
+        self.status = InitStatus.NotInitialized
         self.initialize_event.clear()
 
     def must_initialized(self, func):
@@ -130,7 +134,7 @@ class InitializeManager:
 
         @wraps(func)
         def wrapper(*args, **kwargs):
-            if not self._is_initialized:
+            if self.status != InitStatus.Initialized:
                 return None
 
             return func(*args, **kwargs)
