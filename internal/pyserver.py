@@ -47,9 +47,7 @@ from .session import Session
 from .sublime_settings import Settings
 from .workspace import (
     get_workspace_path,
-    create_document,
-    rename_document,
-    delete_document,
+    WorkspaceEdit,
 )
 
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
