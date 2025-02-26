@@ -4,7 +4,6 @@ import logging
 import threading
 
 from collections import namedtuple, defaultdict
-from dataclasses import dataclass
 from enum import Enum
 from functools import wraps
 from html import escape as escape_html
@@ -20,8 +19,12 @@ from .constant import (
 )
 from .document import (
     BufferedDocument,
-    UnbufferedDocument,
     TextChange,
+)
+from .diagnostics import (
+    DiagnosticManager,
+    ReportSettings,
+    DiagnosticItem,
 )
 from .errors import MethodNotFound
 from .uri import (
@@ -36,7 +39,6 @@ from .lsp_client import (
     Response,
 )
 from .panels import (
-    DiagnosticPanel,
     input_text,
     PathEncodedStr,
     open_location,
@@ -164,9 +166,7 @@ class PyserverClient(Client):
         self.handler_map: Dict[MethodName, HandlerFunction] = dict()
         self._run_server_lock = threading.Lock()
 
-        self.diagnostic_manager = DiagnosticManager(
-            DiagnosticReportSettings(show_panel=False)
-        )
+        self.diagnostic_manager = DiagnosticManager(ReportSettings(show_panel=False))
         self._set_default_handler()
 
         # session data
@@ -370,14 +370,12 @@ class PyserverClient(Client):
         def contain_point(item: DiagnosticItem):
             return item.region.contains(point)
 
-        diagnostics = self.diagnostic_manager.get_active_view_diagnostics(contain_point)
-        if not diagnostics:
+        items = self.diagnostic_manager.get_diagnostic_items(view, contain_point)
+        if not items:
             return ""
 
         title = "### Diagnostics:\n"
-        diagnostic_message = "\n".join(
-            [f"- {escape_html(d.message)}" for d in diagnostics]
-        )
+        diagnostic_message = "\n".join([f"- {escape_html(d.message)}" for d in items])
         return f"{title}\n{diagnostic_message}"
 
     @initialize_manager.must_initialized
@@ -651,198 +649,6 @@ def rpc_to_textchange(change: dict) -> TextChange:
         change["newText"],
         change["rangeLength"],
     )
-
-
-class DiagnosticItem:
-    __slots__ = ["severity", "region", "message"]
-
-    def __init__(self, severity: int, region: sublime.Region, message: str) -> None:
-        self.severity = severity
-        self.region = region
-        self.message = message
-
-    def __repr__(self) -> str:
-        text = "DiagnosticItem(severity=%s, region=%s, message='%s')"
-        return text % (self.severity, self.region, self.message)
-
-
-@dataclass
-class DiagnosticReportSettings:
-    highlight_text: bool = True
-    show_status: bool = True
-    show_panel: bool = False
-
-
-class DiagnosticManager:
-    def __init__(self, settings: DiagnosticReportSettings = None) -> None:
-        self.diagnostics: Dict[sublime.View, List[dict]] = {}
-
-        self.settings = settings or DiagnosticReportSettings()
-        self.panel = DiagnosticPanel()
-
-        self._change_lock = threading.Lock()
-        self._active_view: sublime.View = None
-        self._active_view_diagnostics: List[DiagnosticItem] = []
-
-    def reset(self):
-        # erase regions
-        for view in self.diagnostics.keys():
-            view.erase_regions(self.REGIONS_KEY)
-
-        self._active_view = None
-        self._active_view_diagnostics = []
-        self.panel.destroy()
-        self.diagnostics = {}
-
-    def get(self, view: sublime.View) -> List[dict]:
-        with self._change_lock:
-            return self.diagnostics.get(view, [])
-
-    def set(self, view: sublime.View, diagostics: List[dict]):
-        with self._change_lock:
-            self.diagnostics.update({view: diagostics})
-            self._on_diagnostic_changed(view)
-
-    def remove(self, view: sublime.View):
-        with self._change_lock:
-            try:
-                del self.diagnostics[view]
-            except KeyError:
-                pass
-            self._on_diagnostic_changed(view)
-
-    def set_active_view(self, view: sublime.View):
-        if view == self._active_view:
-            return
-
-        self._active_view = view
-        self._on_diagnostic_changed(view)
-
-    def get_active_view_diagnostics(
-        self, filter_func: Callable[[DiagnosticItem], bool] = None
-    ) -> List[DiagnosticItem]:
-        if not filter_func:
-            return self._active_view_diagnostics
-        return [d for d in self._active_view_diagnostics if filter_func(d)]
-
-    def _on_diagnostic_changed(self, view: sublime.View):
-        diagnostics = [
-            self._to_diagnostic_item(view, diagnostic)
-            for diagnostic in self.diagnostics.get(view, [])
-        ]
-
-        if self.settings.highlight_text:
-            self._highlight_regions(view, diagnostics)
-        if self.settings.show_status:
-            self._show_status(view, diagnostics)
-
-        if view != self._active_view:
-            return
-
-        self._active_view_diagnostics = diagnostics
-        if self.settings.show_panel:
-            self._show_panel(view, diagnostics)
-
-    def _to_diagnostic_item(
-        self, view: sublime.View, diagnostic: dict, /
-    ) -> DiagnosticItem:
-
-        start = LineCharacter(**diagnostic["range"]["start"])
-        end = LineCharacter(**diagnostic["range"]["end"])
-        region = sublime.Region(view.text_point(*start), view.text_point(*end))
-        message = diagnostic["message"]
-        if source := diagnostic.get("source"):
-            message = f"{message} ({source})"
-
-        return DiagnosticItem(diagnostic["severity"], region, message)
-
-    REGIONS_KEY = f"{PACKAGE_NAME}_DIAGNOSTIC_REGIONS"
-
-    def _highlight_regions(self, view: sublime.View, diagnostics: List[DiagnosticItem]):
-        regions = [item.region for item in diagnostics]
-        view.add_regions(
-            key=self.REGIONS_KEY,
-            regions=regions,
-            scope="invalid",
-            icon="dot",
-            flags=sublime.DRAW_NO_FILL
-            | sublime.DRAW_NO_OUTLINE
-            | sublime.DRAW_SQUIGGLY_UNDERLINE,
-        )
-
-    STATUS_KEY = f"{PACKAGE_NAME}_DIAGNOSTIC_STATUS"
-
-    def _show_status(self, view: sublime.View, diagnostics: List[DiagnosticItem]):
-        value = "ERROR %s, WARNING %s"
-        err_count = len([item for item in diagnostics if item.severity == 1])
-        warn_count = len(diagnostics) - err_count
-        view.set_status(self.STATUS_KEY, value % (err_count, warn_count))
-
-    def _show_panel(self, view: sublime.View, diagnostics: List[DiagnosticItem]):
-        def build_line(view: sublime.View, item: DiagnosticItem):
-            short_name = Path(view.file_name()).name
-            row, col = view.rowcol(item.region.begin())
-            return f"{short_name}:{row+1}:{col} {item.message}"
-
-        content = "\n".join([build_line(view, item) for item in diagnostics])
-        self.panel.set_content(content)
-        self.panel.show()
-
-
-class WorkspaceEdit:
-
-    def __init__(self, session: Session):
-        self.session = session
-
-    def apply_changes(self, edit_changes: dict) -> None:
-        """"""
-
-        for document_changes in edit_changes["documentChanges"]:
-            # documentChanges: TextEdit|CreateFile|RenameFile|DeleteFile
-
-            # File Resource Changes
-            if document_changes.get("kind"):
-                self._apply_resource_changes(document_changes)
-                return
-
-            # TextEdit Changes
-            self._apply_textedit_changes(document_changes)
-
-    def _apply_textedit_changes(self, document_changes: dict):
-        file_name = uri_to_path(document_changes["textDocument"]["uri"])
-        edits = document_changes["edits"]
-        changes = [rpc_to_textchange(c) for c in edits]
-
-        document = self.session.get_document_by_name(
-            file_name, UnbufferedDocument(file_name)
-        )
-        document.apply_changes(changes)
-        document.save()
-
-    def _apply_resource_changes(self, changes: dict):
-        func = {
-            "create": self._create_document,
-            "rename": self._rename_document,
-            "delete": self._delete_document,
-        }
-        kind = changes["kind"]
-        func[kind](changes)
-
-    @staticmethod
-    def _create_document(document_changes: dict):
-        file_name = uri_to_path(document_changes["uri"])
-        create_document(file_name)
-
-    @staticmethod
-    def _rename_document(document_changes: dict):
-        old_name = uri_to_path(document_changes["oldUri"])
-        new_name = uri_to_path(document_changes["newUri"])
-        rename_document(old_name, new_name)
-
-    @staticmethod
-    def _delete_document(document_changes: dict):
-        file_name = uri_to_path(document_changes["uri"])
-        delete_document(file_name)
 
 
 def get_client() -> PyserverClient:
