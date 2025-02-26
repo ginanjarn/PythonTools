@@ -36,15 +36,6 @@ def get_workspace_path(view: sublime.View, return_parent: bool = True) -> str:
     return str(Path(file_name).parent)
 
 
-def open_document(file_name: PathStr, preview: bool = False):
-    """open document"""
-    flags = sublime.ENCODED_POSITION
-    if preview:
-        flags |= sublime.TRANSIENT
-
-    sublime.active_window().open_file(file_name, flags=flags)
-
-
 def create_document(file_name: PathStr, text: str = ""):
     """create document"""
     path = Path(file_name)

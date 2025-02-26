@@ -7,7 +7,6 @@ import sublime
 
 from .constant import PACKAGE_NAME, COMMAND_PREFIX
 from .document import TextChange
-from .workspace import open_document
 
 
 class DiagnosticPanel:
@@ -70,8 +69,20 @@ def set_selection(view: sublime.View, regions: List[sublime.Region]):
     view.sel().add_all(regions)
 
 
+def open_document(
+    window: sublime.Window, file_name: PathEncodedStr, preview: bool = False
+):
+    """open document"""
+    flags = sublime.ENCODED_POSITION
+    if preview:
+        flags |= sublime.TRANSIENT
+
+    window.open_file(file_name, flags=flags)
+
+
 def open_location(current_view: sublime.View, locations: List[PathEncodedStr]) -> None:
     """"""
+    window = current_view.window()
     current_selections = list(current_view.sel())
     current_visible_region = current_view.visible_region()
 
@@ -79,7 +90,7 @@ def open_location(current_view: sublime.View, locations: List[PathEncodedStr]) -
 
     def open_location(index):
         if index >= 0:
-            open_document(locations[index])
+            open_document(window, locations[index])
             return
 
         # else: revert to current state
@@ -88,9 +99,9 @@ def open_location(current_view: sublime.View, locations: List[PathEncodedStr]) -
         current_view.show(current_visible_region, show_surrounds=False)
 
     def preview_location(index):
-        open_document(locations[index], preview=True)
+        open_document(window, locations[index], preview=True)
 
-    sublime.active_window().show_quick_panel(
+    window.show_quick_panel(
         items=locations,
         on_select=open_location,
         flags=sublime.MONOSPACE_FONT,
