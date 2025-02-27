@@ -2,6 +2,7 @@
 
 import logging
 import threading
+from enum import Enum
 from typing import Optional, Dict, List, Any
 
 import sublime
@@ -14,6 +15,12 @@ from .diagnostics import DiagnosticManager, ReportSettings
 MethodName = str
 PathStr = str
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
+
+
+class InitializeStatus(Enum):
+    NotInitialized = 0
+    Initializing = 1
+    Initialized = 2
 
 
 class Session:
@@ -33,12 +40,16 @@ class Session:
         # Diagnostic manager
         self.diagnostic_manager = DiagnosticManager(ReportSettings(show_panel=False))
 
+        # Initialize status
+        self.inittialize_status: InitializeStatus = InitializeStatus.NotInitialized
+
     def reset(self):
         """"""
         with self._lock:
             self.working_documents.clear()
             self.action_target.clear()
             self.diagnostic_manager.reset()
+            self.inittialize_status = InitializeStatus.NotInitialized
 
     def get_document(
         self, view: sublime.View, /, default: Any = None

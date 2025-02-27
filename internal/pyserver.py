@@ -39,7 +39,7 @@ from .panels import (
     PathEncodedStr,
     open_location,
 )
-from .session import Session
+from .session import Session, InitializeStatus
 from .sublime_settings import Settings
 from .workspace import (
     get_workspace_path,
@@ -86,72 +86,39 @@ COMPLETION_KIND_MAP = defaultdict(
 )
 
 
-class InitStatus(Enum):
-    NotInitialized = 0
-    Initializing = 1
-    Initialized = 2
+def wait(event: threading.Event):
+    """decorator to wait function call execution event set"""
 
-
-class InitializeManager:
-    """"""
-
-    def __init__(self):
-        self.initialize_event = threading.Event()
-        self.status: InitStatus = InitStatus.NotInitialized
-
-    def reset(self):
-        self.initialize_event.clear()
-        self.status = InitStatus.NotInitialized
-
-    def set_initializing(self, status: bool = True) -> None:
-        """"""
-        self.status = InitStatus.Initializing
-
-    def is_initializing(self) -> bool:
-        """"""
-        return self.status == InitStatus.Initializing
-
-    def is_initialized(self) -> bool:
-        """"""
-        return self.status == InitStatus.Initialized
-
-    def initialize(self) -> None:
-        """initialie session"""
-        self.initialize_event.set()
-        self.status = InitStatus.Initialized
-
-    def uninitialize(self) -> None:
-        """done session"""
-        self.status = InitStatus.NotInitialized
-        self.initialize_event.clear()
-
-    def must_initialized(self, func):
-        """decorator to ignore function call if not initialized"""
-
+    def func_wrapper(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            if self.status != InitStatus.Initialized:
+            event.wait()
+            return func(*args, **kwargs)
+
+        return wrapper
+
+    return func_wrapper
+
+
+def cancel_if_unset(event: threading.Event):
+    """cancel function call if event unset"""
+
+    def func_wrapper(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            if not event.is_set():
                 return None
-
             return func(*args, **kwargs)
 
         return wrapper
 
-    def wait_initialized(self, func):
-        """decorator to wait function call execution until initialized"""
-
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            self.initialize_event.wait()
-            return func(*args, **kwargs)
-
-        return wrapper
+    return func_wrapper
 
 
 class PyserverClient(Client):
     """"""
 
-    initialize_manager = InitializeManager()
+    initialize_event = threading.Event()
 
     def __init__(self, transport: Transport):
         super().__init__(transport, self)
@@ -197,11 +164,11 @@ class PyserverClient(Client):
     def reset_state(self) -> None:
         """reset session state"""
         self.session.reset()
-        self.initialize_manager.reset()
+        self.initialize_event.clear()
 
     def is_ready(self) -> bool:
         """check session is ready"""
-        return self.is_server_running() and self.initialize_manager.is_initialized()
+        return self.is_server_running() and self.initialize_event.is_set()
 
     def terminate(self) -> None:
         """terminate session"""
@@ -231,7 +198,7 @@ class PyserverClient(Client):
 
     def initialize(self, view: sublime.View):
         # cancel if initializing
-        if self.initialize_manager.is_initializing():
+        if self.session.inittialize_status == InitializeStatus.Initializing:
             return
 
         # check if view not closed
@@ -242,7 +209,7 @@ class PyserverClient(Client):
         if not workspace_path:
             return
 
-        self.initialize_manager.set_initializing()
+        self.session.inittialize_status = InitializeStatus.Initializing
         self.send_request(
             "initialize",
             {
@@ -264,7 +231,8 @@ class PyserverClient(Client):
             return
 
         self.send_notification("initialized", {})
-        self.initialize_manager.initialize()
+        self.session.inittialize_status = InitializeStatus.Initialized
+        self.initialize_event.set()
 
     def handle_window_logmessage(self, session: Session, params: dict):
         print(params["message"])
@@ -272,7 +240,7 @@ class PyserverClient(Client):
     def handle_window_showmessage(self, session: Session, params: dict):
         sublime.status_message(params["message"])
 
-    @initialize_manager.wait_initialized
+    @wait(initialize_event)
     def textdocument_didopen(self, view: sublime.View, *, reload: bool = False):
         # check if view not closed
         if not (view and view.is_valid()):
@@ -311,7 +279,7 @@ class PyserverClient(Client):
         # Add current document
         self.session.add_document(document)
 
-    @initialize_manager.must_initialized
+    @cancel_if_unset(initialize_event)
     def textdocument_didsave(self, view: sublime.View):
         if document := self.session.get_document(view):
             self.send_notification(
@@ -323,7 +291,7 @@ class PyserverClient(Client):
             # untitled document not yet loaded to server
             self.textdocument_didopen(view)
 
-    @initialize_manager.must_initialized
+    @cancel_if_unset(initialize_event)
     def textdocument_didclose(self, view: sublime.View):
         file_name = view.file_name()
         self.session.diagnostic_manager.remove(view)
@@ -340,7 +308,7 @@ class PyserverClient(Client):
                 {"textDocument": {"uri": path_to_uri(document.file_name)}},
             )
 
-    @initialize_manager.must_initialized
+    @cancel_if_unset(initialize_event)
     def textdocument_didchange(self, view: sublime.View, changes: List[TextChange]):
         # Document can be related to multiple View but has same file_name.
         # Use get_document_by_name() because may be document already open
@@ -374,7 +342,7 @@ class PyserverClient(Client):
         diagnostic_message = "\n".join([f"- {escape_html(d.message)}" for d in items])
         return f"{title}\n{diagnostic_message}"
 
-    @initialize_manager.must_initialized
+    @cancel_if_unset(initialize_event)
     def textdocument_hover(self, view, row, col):
         method = "textDocument/hover"
         # In multi row/column layout, new popup will created in current View,
@@ -406,7 +374,7 @@ class PyserverClient(Client):
             row, col = LineCharacter(**result["range"]["start"])
             session.action_target[method].show_popup(message, row, col)
 
-    @initialize_manager.must_initialized
+    @cancel_if_unset(initialize_event)
     def textdocument_completion(self, view, row, col):
         method = "textDocument/completion"
         if document := self.session.get_document(view):
@@ -446,7 +414,7 @@ class PyserverClient(Client):
             items = [self._build_completion(item) for item in result["items"]]
             session.action_target[method].show_completion(items)
 
-    @initialize_manager.must_initialized
+    @cancel_if_unset(initialize_event)
     def textdocument_signaturehelp(self, view, row, col):
         method = "textDocument/signatureHelp"
         if document := self.session.get_document(view):
@@ -487,7 +455,7 @@ class PyserverClient(Client):
         for document in session.get_documents(file_name):
             self.session.diagnostic_manager.set(document.view, diagnostics)
 
-    @initialize_manager.must_initialized
+    @cancel_if_unset(initialize_event)
     def textdocument_formatting(self, view):
         method = "textDocument/formatting"
         if document := self.session.get_document(view):
@@ -528,7 +496,7 @@ class PyserverClient(Client):
 
         return None
 
-    @initialize_manager.must_initialized
+    @cancel_if_unset(initialize_event)
     def textdocument_definition(self, view, row, col):
         method = "textDocument/definition"
         if document := self.session.get_document(view):
@@ -556,7 +524,7 @@ class PyserverClient(Client):
             locations = [self._build_location(l) for l in result]
             open_location(view, locations)
 
-    @initialize_manager.must_initialized
+    @cancel_if_unset(initialize_event)
     def textdocument_preparerename(self, view, row, col):
         method = "textDocument/prepareRename"
         if document := self.session.get_document(view):
@@ -569,7 +537,7 @@ class PyserverClient(Client):
                 },
             )
 
-    @initialize_manager.must_initialized
+    @cancel_if_unset(initialize_event)
     def textdocument_rename(self, view, row, col, new_name):
         method = "textDocument/rename"
 
