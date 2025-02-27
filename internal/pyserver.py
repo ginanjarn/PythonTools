@@ -213,7 +213,7 @@ class PyserverClient(Client):
     def terminate(self) -> None:
         """terminate session"""
         self.terminate_server()
-        self._reset_state()
+        self.reset_state()
 
     def _set_default_handler(self):
         default_handlers = {
