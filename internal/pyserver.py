@@ -288,21 +288,21 @@ class PyserverClient(Client):
         file_name = view.file_name()
         self.diagnostic_manager.set_active_view(view)
 
-        if opened_document := self.session.get_document(view):
-            if opened_document.file_name == file_name and (not reload):
+        # In SublimeText, rename file only retarget to new path
+        # but the 'View' did not closed.
+        if older_document := self.session.get_document(view):
+            rename = older_document.file_name != file_name
+            if not (rename or reload):
                 return
 
-            # In SublimeText, rename file only retarget to new path
-            # but the 'View' is not closed.
-            # Close older document then reopen with new name.
+            # Close older document.
             self.textdocument_didclose(view)
 
         document = BufferedDocument(view)
-        self.session.add_document(document)
 
-        # Document maybe opened in multiple 'View', send notification
+        # Same document maybe opened in multiple 'View', send notification
         # only on first opening document.
-        if len(self.session.get_documents(file_name)) == 1:
+        if not self.session.get_documents(file_name):
             self.send_notification(
                 "textDocument/didOpen",
                 {
@@ -314,6 +314,9 @@ class PyserverClient(Client):
                     }
                 },
             )
+
+        # Add current document
+        self.session.add_document(document)
 
     @initialize_manager.must_initialized
     def textdocument_didsave(self, view: sublime.View):
