@@ -8,6 +8,7 @@ import sublime
 
 from .constant import LOGGING_CHANNEL
 from .document import BufferedDocument
+from .diagnostics import DiagnosticManager, ReportSettings
 
 
 MethodName = str
@@ -29,10 +30,15 @@ class Session:
         # Target document where result applied, e.g: completion result.
         self.action_target: Dict[MethodName, BufferedDocument] = {}
 
+        # Diagnostic manager
+        self.diagnostic_manager = DiagnosticManager(ReportSettings(show_panel=False))
+
     def reset(self):
         """"""
         with self._lock:
             self.working_documents.clear()
+            self.action_target.clear()
+            self.diagnostic_manager.reset()
 
     def get_document(
         self, view: sublime.View, /, default: Any = None

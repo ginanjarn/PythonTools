@@ -21,11 +21,7 @@ from .document import (
     BufferedDocument,
     TextChange,
 )
-from .diagnostics import (
-    DiagnosticManager,
-    ReportSettings,
-    DiagnosticItem,
-)
+from .diagnostics import DiagnosticItem
 from .errors import MethodNotFound
 from .uri import (
     path_to_uri,
@@ -164,7 +160,6 @@ class PyserverClient(Client):
         self.handler_map: Dict[MethodName, HandlerFunction] = dict()
         self._run_server_lock = threading.Lock()
 
-        self.diagnostic_manager = DiagnosticManager(ReportSettings(show_panel=False))
         self._set_default_handler()
 
         # session data
@@ -202,9 +197,7 @@ class PyserverClient(Client):
     def reset_state(self) -> None:
         """reset session state"""
         self.session.reset()
-        self.session.action_target.clear()
         self.initialize_manager.reset()
-        self.diagnostic_manager.reset()
 
     def is_ready(self) -> bool:
         """check session is ready"""
@@ -286,7 +279,7 @@ class PyserverClient(Client):
             return
 
         file_name = view.file_name()
-        self.diagnostic_manager.set_active_view(view)
+        self.session.diagnostic_manager.set_active_view(view)
 
         # In SublimeText, rename file only retarget to new path
         # but the 'View' did not closed.
@@ -333,7 +326,7 @@ class PyserverClient(Client):
     @initialize_manager.must_initialized
     def textdocument_didclose(self, view: sublime.View):
         file_name = view.file_name()
-        self.diagnostic_manager.remove(view)
+        self.session.diagnostic_manager.remove(view)
 
         if document := self.session.get_document(view):
             self.session.remove_document(view)
@@ -371,7 +364,9 @@ class PyserverClient(Client):
         def contain_point(item: DiagnosticItem):
             return item.region.contains(point)
 
-        items = self.diagnostic_manager.get_diagnostic_items(view, contain_point)
+        items = self.session.diagnostic_manager.get_diagnostic_items(
+            view, contain_point
+        )
         if not items:
             return ""
 
@@ -490,7 +485,7 @@ class PyserverClient(Client):
         diagnostics = params["diagnostics"]
 
         for document in session.get_documents(file_name):
-            self.diagnostic_manager.set(document.view, diagnostics)
+            self.session.diagnostic_manager.set(document.view, diagnostics)
 
     @initialize_manager.must_initialized
     def textdocument_formatting(self, view):
