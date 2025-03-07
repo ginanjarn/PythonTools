@@ -1,10 +1,10 @@
 """pyserver spesific handler"""
 
+import time
 import logging
 import threading
 
 from collections import namedtuple, defaultdict
-from enum import Enum
 from functools import wraps
 from html import escape as escape_html
 from pathlib import Path
@@ -625,6 +625,9 @@ def get_client() -> PyserverClient:
     return PyserverClient(transport)
 
 
+_RUN_COMMAND_AFTER: int = -1
+
+
 def get_envs_settings() -> Optional[dict]:
     """get environments defined in '*.sublime-settings'"""
 
@@ -632,5 +635,14 @@ def get_envs_settings() -> Optional[dict]:
         if envs := settings.get("envs"):
             return envs
 
-        sublime.active_window().run_command("pythontools_set_environment")
+        # Prevent multiple call run_command
+        now = time.time()
+        global _RUN_COMMAND_AFTER
+        if now < _RUN_COMMAND_AFTER:
+            return None
+
+        duration = 5  # in second
+        _RUN_COMMAND_AFTER = now + duration
+
+        sublime.active_window().run_command(f"{COMMAND_PREFIX}_set_environment")
         return None
