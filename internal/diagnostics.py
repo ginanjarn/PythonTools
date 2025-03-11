@@ -11,6 +11,9 @@ import sublime
 from .constant import PACKAGE_NAME
 from .panels import DiagnosticPanel
 
+PathStr = str
+"""Path in string"""
+
 
 @dataclass
 class DiagnosticItem:
@@ -51,8 +54,8 @@ class DiagnosticManager:
     """"""
 
     def __init__(self, settings: ReportSettings = DefaultSettings) -> None:
-        self.diagnostics_map: Dict[sublime.View, List[dict]] = {}
-        self.diagnostics_items_map: Dict[sublime.View, List[DiagnosticItem]] = {}
+        self.diagnostics_map: Dict[PathStr, List[dict]] = {}
+        self.diagnostics_items_map: Dict[PathStr, List[DiagnosticItem]] = {}
 
         self.settings = settings
         self.panel = DiagnosticPanel()
@@ -62,7 +65,8 @@ class DiagnosticManager:
 
     def reset(self):
         # clear all regions before diagnostics_map cleared
-        self._clear_all_regions(self.diagnostics_map.keys())
+        self._clear_all_regions()
+        self._clear_all_status()
         self._active_view = None
         self.panel.destroy()
         self.diagnostics_map.clear()
@@ -70,14 +74,14 @@ class DiagnosticManager:
 
     def get(self, view: sublime.View) -> List[dict]:
         with self._change_lock:
-            return self.diagnostics_map.get(view, [])
+            return self.diagnostics_map.get(view.file_name(), [])
 
     def set(self, view: sublime.View, diagnostics: List[dict]):
         with self._change_lock:
-            self.diagnostics_map[view] = diagnostics
+            self.diagnostics_map[view.file_name()] = diagnostics
             # Save DiagnostictsItems separate to diagnostic data
             # to prevent rebuild later.
-            self.diagnostics_items_map[view] = [
+            self.diagnostics_items_map[view.file_name()] = [
                 rpc_to_diagnosticitem(view, d) for d in diagnostics
             ]
             self._show_report(view)
@@ -85,8 +89,8 @@ class DiagnosticManager:
     def remove(self, view: sublime.View):
         with self._change_lock:
             try:
-                del self.diagnostics_map[view]
-                del self.diagnostics_items_map[view]
+                del self.diagnostics_map[view.file_name()]
+                del self.diagnostics_items_map[view.file_name()]
             except KeyError:
                 pass
             self._show_report(view)
@@ -103,7 +107,7 @@ class DiagnosticManager:
         self, view: sublime.View, filter_fn: Callable[[DiagnosticItem], bool] = None
     ) -> List[DiagnosticItem]:
         try:
-            diagnostic_items = self.diagnostics_items_map[view]
+            diagnostic_items = self.diagnostics_items_map[view.file_name()]
         except KeyError:
             return []
 
@@ -113,7 +117,7 @@ class DiagnosticManager:
 
     def _show_report(self, view: sublime.View):
         try:
-            diagnostic_items = self.diagnostics_items_map[view]
+            diagnostic_items = self.diagnostics_items_map[view.file_name()]
         except KeyError:
             return []
 
@@ -143,10 +147,18 @@ class DiagnosticManager:
         )
 
     @staticmethod
-    def _clear_all_regions(views: List[sublime.View]):
-        # erase regions
-        for view in views:
-            view.erase_regions(REGIONS_KEY)
+    def _clear_all_regions():
+        for window in sublime.windows():
+            # erase regions
+            for view in [v for v in window.views()]:
+                view.erase_regions(REGIONS_KEY)
+
+    @staticmethod
+    def _clear_all_status():
+        for window in sublime.windows():
+            # erase regions
+            for view in [v for v in window.views()]:
+                view.erase_status(STATUS_KEY)
 
     @staticmethod
     def _show_status(view: sublime.View, diagnostic_items: List[DiagnosticItem]):
