@@ -6,7 +6,7 @@ import json
 import os
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Iterator, Optional, Union
+from typing import Iterator, Optional, Union, AnyStr
 
 
 @dataclass
@@ -21,14 +21,17 @@ class EnvironmentManager:
         self.python_bin = str(self.python_bin)
 
 
+@dataclass
 class Global(EnvironmentManager):
     """Global environement"""
 
 
+@dataclass
 class Conda(EnvironmentManager):
     """Conda environment"""
 
 
+@dataclass
 class Venv(EnvironmentManager):
     """Venv environment"""
 
@@ -38,6 +41,14 @@ class ProcessResult:
     code: int
     stdout: str
     stderr: str
+
+
+def normalize_newline(src: AnyStr) -> AnyStr:
+    r"""normalize newline to '\n'"""
+
+    if isinstance(src, bytes):
+        return src.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+    return src.replace("\r\n", "\n").replace("\r", "\n")
 
 
 if os.name == "nt":
@@ -63,8 +74,8 @@ def run_childprocess(command: Union[list, str], **kwargs) -> ProcessResult:
     )
 
     stdout, stderr = proc.communicate()
-    stdout = stdout.replace(b"\r\n", b"\n").decode() if stdout else ""
-    stderr = stderr.replace(b"\r\n", b"\n").decode() if stderr else ""
+    stdout = normalize_newline(stdout).decode()
+    stderr = normalize_newline(stderr).decode()
     return ProcessResult(proc.returncode, stdout, stderr)
 
 
@@ -97,13 +108,13 @@ def scan(workdir: Optional[Path]) -> Iterator[EnvironmentManager]:
 
 # There some difference layout for windows and posix
 if os.name == "nt":
-    BINARY_PATH = "Scripts"
-    PYTHON = "python.exe"
+    BIN_PATH = "Scripts"
+    PYTHON_PATH = "python.exe"
     # activate environment call 'Scripts/activate'
     VENV_ACTIVATE_PREFIX = ""
 else:
-    BINARY_PATH = "bin"
-    PYTHON = os.path.join(BINARY_PATH, "python")
+    BIN_PATH = "bin"
+    PYTHON_PATH = os.path.join(BIN_PATH, "python")
     # activate environment call 'source bin/activate'
     VENV_ACTIVATE_PREFIX = "source "
 
@@ -112,7 +123,7 @@ def scan_global():
     """scan global environment"""
 
     for folder in os.environ["PATH"].split(os.pathsep):
-        pythonpath = Path(folder, PYTHON)
+        pythonpath = Path(folder, PYTHON_PATH)
 
         if pythonpath.is_file():
             yield Global(pythonpath, None)
@@ -122,7 +133,7 @@ def scan_conda_envs(condabin: Path, basepath: Path):
     condabin = Path(basepath, "condabin", "conda")
     folders = [path for path in basepath.glob("envs/*") if path.is_dir()]
     for folder in folders:
-        pythonpath = Path(folder, PYTHON)
+        pythonpath = Path(folder, PYTHON_PATH)
 
         if pythonpath.is_file():
             yield Conda(pythonpath, f"'{condabin}' activate '{folder}'")
@@ -135,7 +146,7 @@ def scan_conda():
     home = Path().home()
     folders = [path for path in home.glob("*conda*") if path.is_dir()]
     for folder in folders:
-        pythonpath = Path(folder, PYTHON)
+        pythonpath = Path(folder, PYTHON_PATH)
 
         if pythonpath.is_file():
             condabin = Path(folder, "condabin", "conda")
@@ -149,8 +160,8 @@ def scan_venv(workdir: Path):
 
     folders = [path for path in Path(workdir).iterdir() if path.is_dir()]
     for folder in folders:
-        pythonpath = Path(folder, PYTHON)
-        activatepath = Path(folder, BINARY_PATH, "activate")
+        pythonpath = Path(folder, PYTHON_PATH)
+        activatepath = Path(folder, BIN_PATH, "activate")
 
         if pythonpath.is_file():
             yield Venv(pythonpath, f"'{VENV_ACTIVATE_PREFIX}{activatepath}'")
