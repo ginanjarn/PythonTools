@@ -8,7 +8,7 @@ from typing import Optional, Dict, List, Any
 import sublime
 
 from .constant import LOGGING_CHANNEL
-from .document import BufferedDocument
+from .document import Document
 from .diagnostics import DiagnosticManager, ReportSettings
 
 
@@ -31,11 +31,11 @@ class Session:
         # Map document by view is easier to track if view is valid.
         # If we map by file name, one document my related to multiple 'View'
         # and some times the 'View' is invalid.
-        self.working_documents: Dict[sublime.View, BufferedDocument] = {}
+        self.working_documents: Dict[sublime.View, Document] = {}
         self._lock = threading.Lock()
 
         # Target document where result applied, e.g: completion result.
-        self.action_target: Dict[MethodName, BufferedDocument] = {}
+        self.action_target: Dict[MethodName, Document] = {}
 
         # Diagnostic manager
         self.diagnostic_manager = DiagnosticManager(ReportSettings(show_panel=False))
@@ -53,11 +53,11 @@ class Session:
 
     def get_document(
         self, view: sublime.View, /, default: Any = None
-    ) -> Optional[BufferedDocument]:
+    ) -> Optional[Document]:
         with self._lock:
             return self.working_documents.get(view, default)
 
-    def add_document(self, document: BufferedDocument) -> None:
+    def add_document(self, document: Document) -> None:
         with self._lock:
             self.working_documents[document.view] = document
 
@@ -71,7 +71,7 @@ class Session:
 
     def get_document_by_name(
         self, file_name: PathStr, /, default: Any = None
-    ) -> Optional[BufferedDocument]:
+    ) -> Optional[Document]:
         """get document by name"""
 
         with self._lock:
@@ -82,7 +82,7 @@ class Session:
 
     def get_documents(
         self, file_name: Optional[PathStr] = None
-    ) -> List[BufferedDocument]:
+    ) -> List[Document]:
         """get documents.
         If file_name assigned, return documents with file_name filtered.
         """

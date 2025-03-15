@@ -18,7 +18,7 @@ from .constant import (
     PACKAGE_NAME,
 )
 from .document import (
-    BufferedDocument,
+    Document,
     TextChange,
 )
 from .diagnostics import DiagnosticItem
@@ -43,7 +43,10 @@ from .session import Session, InitializeStatus
 from .sublime_settings import Settings
 from .workspace import (
     get_workspace_path,
-    WorkspaceEdit,
+    create_document,
+    update_document,
+    rename_document,
+    delete_document,
 )
 
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
@@ -259,7 +262,7 @@ class PyserverClient(Client):
             # Close older document.
             self.textdocument_didclose(view)
 
-        document = BufferedDocument(view)
+        document = Document(view)
 
         # Same document maybe opened in multiple 'View', send notification
         # only on first opening document.
@@ -589,6 +592,63 @@ class PyserverClient(Client):
             print(error["message"])
         elif result := params.result:
             WorkspaceEdit(session).apply_changes(result)
+
+
+class WorkspaceEdit:
+
+    def __init__(self, session: Session):
+        self.session = session
+
+    def apply_changes(self, edit_changes: dict) -> None:
+        """"""
+
+        for document_changes in edit_changes["documentChanges"]:
+            # documentChanges: TextEdit|CreateFile|RenameFile|DeleteFile
+
+            # File Resource Changes
+            if document_changes.get("kind"):
+                self._apply_resource_changes(document_changes)
+                return
+
+            # TextEdit Changes
+            self._apply_textedit_changes(document_changes)
+
+    def _apply_textedit_changes(self, document_changes: dict):
+        file_name = uri_to_path(document_changes["textDocument"]["uri"])
+        edits = document_changes["edits"]
+        changes = [rpc_to_textchange(c) for c in edits]
+
+        if document := self.session.get_document_by_name(file_name):
+            document.apply_changes(changes)
+            document.save()
+
+        else:
+            update_document(file_name, changes)
+
+    def _apply_resource_changes(self, changes: dict):
+        func = {
+            "create": self._create_document,
+            "rename": self._rename_document,
+            "delete": self._delete_document,
+        }
+        kind = changes["kind"]
+        func[kind](changes)
+
+    @staticmethod
+    def _create_document(document_changes: dict):
+        file_name = uri_to_path(document_changes["uri"])
+        create_document(file_name)
+
+    @staticmethod
+    def _rename_document(document_changes: dict):
+        old_name = uri_to_path(document_changes["oldUri"])
+        new_name = uri_to_path(document_changes["newUri"])
+        rename_document(old_name, new_name)
+
+    @staticmethod
+    def _delete_document(document_changes: dict):
+        file_name = uri_to_path(document_changes["uri"])
+        delete_document(file_name)
 
 
 def textchange_to_rpc(text_change: TextChange) -> dict:
