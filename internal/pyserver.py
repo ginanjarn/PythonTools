@@ -29,6 +29,7 @@ from .uri import (
 )
 from .lsp_client import (
     Client,
+    ServerProcess,
     Transport,
     StandardIO,
     MethodName,
@@ -120,12 +121,12 @@ class PyserverClient(Client):
 
     initialize_event = threading.Event()
 
-    def __init__(self, transport: Transport):
-        super().__init__(transport, self)
+    def __init__(self, server: ServerProcess, transport: Transport):
+        super().__init__(server, transport, self)
 
         # server message handler
         self.handler_map: Dict[MethodName, HandlerFunction] = dict()
-        self._run_server_lock = threading.Lock()
+        self._start_server_lock = threading.Lock()
 
         self._set_default_handler()
 
@@ -148,32 +149,32 @@ class PyserverClient(Client):
     def start_server(self, env: Optional[dict] = None) -> None:
         """"""
         # only one thread can run server
-        if self._run_server_lock.locked():
+        if self._start_server_lock.locked():
             return
 
-        with self._run_server_lock:
-            if not self.is_server_running():
+        with self._start_server_lock:
+            if not self.server.is_running():
                 sublime.status_message("running language server...")
                 # sometimes the server stop working
                 # we must reset the state before run server
-                self.reset_state()
+                self.reset_session()
 
-                self.run_server(env)
+                self.server.run(env)
                 self.listen()
 
-    def reset_state(self) -> None:
+    def reset_session(self) -> None:
         """reset session state"""
         self.session.reset()
         self.initialize_event.clear()
 
     def is_ready(self) -> bool:
         """check session is ready"""
-        return self.is_server_running() and self.initialize_event.is_set()
+        return self.server.is_running() and self.initialize_event.is_set()
 
     def terminate(self) -> None:
         """terminate session"""
-        self.terminate_server()
-        self.reset_state()
+        self.server.terminate()
+        self.reset_session()
 
     def _set_default_handler(self):
         default_handlers = {
@@ -621,8 +622,9 @@ def get_client() -> PyserverClient:
 
     server_path = package_path.joinpath("pyserver")
     command = ["python", "-m", "pyserver", "-i"]
-    transport = StandardIO(command, server_path)
-    return PyserverClient(transport)
+    server = ServerProcess(command, server_path)
+    transport = StandardIO(server)
+    return PyserverClient(server, transport)
 
 
 _RUN_COMMAND_AFTER: int = -1
