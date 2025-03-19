@@ -152,6 +152,10 @@ class ServerProcess:
         self.process: subprocess.Popen = None
         self._run_event = threading.Event()
 
+        # Prevent run process until termination done
+        self._terminate_event = threading.Event()
+        self._terminate_event.set()
+
     def is_running(self) -> bool:
         """If process is running"""
         try:
@@ -165,6 +169,9 @@ class ServerProcess:
 
     def run(self, env: Optional[dict] = None) -> None:
         """Run process"""
+
+        # Wait if in termination process
+        self._terminate_event.wait()
 
         print("execute '%s'" % shlex.join(self.command))
 
@@ -204,12 +211,12 @@ class ServerProcess:
             print(prefix, bline.rstrip().decode())
 
         # Stderr return empty character, process is terminated
-        self._run_event.clear()
+        self._terminate_event.set()
 
     def terminate(self) -> None:
         """Terminate process"""
 
-        # reset state
+        self._terminate_event.clear()
         self._run_event.clear()
 
         if not self.process:
