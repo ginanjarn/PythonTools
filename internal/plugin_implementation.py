@@ -129,15 +129,15 @@ class CompletionEventListener:
         self.client: PyserverClient
         self.prev_completion_point = 0
 
-    def _is_context_changed(self, view: sublime.View, point: int) -> bool:
-        """"""
+    def _is_context_changed(self, view: sublime.View, old: int, new: int) -> bool:
+        """check if context moved from old point"""
 
         # point unchanged
-        if point == self.prev_completion_point:
+        if old == new:
             return False
         # point changed but still in same word
-        word = view.word(self.prev_completion_point)
-        if view.substr(word).isidentifier() and point in word:
+        word = view.word(old)
+        if view.substr(word).isidentifier() and new in word:
             return False
         return True
 
@@ -158,9 +158,11 @@ class CompletionEventListener:
         ) and document.is_completion_available():
 
             items = document.pop_completion()
-            if self._is_context_changed(view, point) or (not items):
-                document.hide_completion()
-                return
+            if (not items) or self._is_context_changed(
+                view, self.prev_completion_point, point
+            ):
+                self.hide_completions(view)
+                return None
 
             return sublime.CompletionList(items, flags=sublime.INHIBIT_WORD_COMPLETIONS)
 
@@ -168,11 +170,14 @@ class CompletionEventListener:
 
         row, col = view.rowcol(point)
         self.client.textdocument_completion(view, row, col)
-        view.run_command("hide_auto_complete")
+        self.hide_completions(view)
 
         # Use timeout because of slowdown in completion request
         sublime.set_timeout_async(self.show_signature_help(view, point), 0.5)
         return None
+
+    def hide_completions(self, view: sublime.View):
+        view.run_command("hide_auto_complete")
 
     def show_signature_help(self, view: sublime.View, point: int):
         view.run_command(f"{COMMAND_PREFIX}_document_signature_help", {"point": point})
