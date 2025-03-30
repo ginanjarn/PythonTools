@@ -8,7 +8,7 @@ import sublime
 from sublime import HoverZone
 
 from .constant import LOGGING_CHANNEL, COMMAND_PREFIX
-from .document import TextChange, is_valid_document
+from .document import TextChange
 from .pyserver import PyserverClient, get_envs_settings
 
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
@@ -27,10 +27,6 @@ class OpenEventListener:
         self.prev_completion_point = 0
 
     def _on_activated_async(self, view: sublime.View):
-        # check point in valid source
-        if not is_valid_document(view):
-            return
-
         if self.client.is_ready():
             self.client.textdocument_didopen(view)
             return
@@ -43,26 +39,14 @@ class OpenEventListener:
         self.client.textdocument_didopen(view)
 
     def _on_load(self, view: sublime.View):
-        # check point in valid source
-        if not is_valid_document(view):
-            return
-
         if self.client.is_ready():
             self.client.textdocument_didopen(view, reload=True)
 
     def _on_reload(self, view: sublime.View):
-        # check point in valid source
-        if not is_valid_document(view):
-            return
-
         if self.client.is_ready():
             self.client.textdocument_didopen(view, reload=True)
 
     def _on_revert(self, view: sublime.View):
-        # check point in valid source
-        if not is_valid_document(view):
-            return
-
         if self.client.is_ready():
             self.client.textdocument_didopen(view, reload=True)
 
@@ -74,10 +58,6 @@ class SaveEventListener:
         self.prev_completion_point = 0
 
     def _on_post_save_async(self, view: sublime.View):
-        # check point in valid source
-        if not is_valid_document(view):
-            return
-
         if self.client.is_ready():
             self.client.textdocument_didsave(view)
 
@@ -89,10 +69,6 @@ class CloseEventListener:
         self.prev_completion_point = 0
 
     def _on_close(self, view: sublime.View):
-        # check point in valid source
-        if not is_valid_document(view):
-            return
-
         if self.client.is_ready():
             self.client.textdocument_didclose(view)
 
@@ -105,11 +81,6 @@ class TextChangeListener:
 
     def _on_text_changed(self, changes: List[sublime.TextChange]):
         view = self.buffer.primary_view()
-
-        # check point in valid source
-        if not is_valid_document(view):
-            return
-
         if self.client.is_ready():
             self.client.textdocument_didchange(
                 view, [self.to_text_change(c) for c in changes]
@@ -148,11 +119,6 @@ class CompletionEventListener:
             return None
 
         point = locations[0]
-
-        # check point in valid source
-        if not is_valid_document(view):
-            return None
-
         if (
             document := self.client.session.action_target.get("textDocument/completion")
         ) and document.is_completion_available():
@@ -189,10 +155,6 @@ class HoverEventListener:
         self.client: PyserverClient
 
     def _on_hover(self, view: sublime.View, point: int, hover_zone: HoverZone):
-        # check point in valid source
-        if not (is_valid_document(view) and hover_zone == sublime.HOVER_TEXT):
-            return
-
         row, col = view.rowcol(point)
         threading.Thread(target=self._on_hover_task, args=(view, row, col)).start()
 
