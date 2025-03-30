@@ -311,13 +311,14 @@ class ApplyTextChangesCommand:
         """relocate current selection following text changes"""
         moved_selections = []
         for selection in selections:
-            temp_selection = selection
+            move = 0
             for change in changes:
-                if temp_selection.begin() > change.region.begin():
-                    temp_selection.a += change.offset_move()
-                    temp_selection.b += change.offset_move()
+                changed_region = change.region
+                if changed_region.begin() < selection.begin():
+                    move += change.offset_move()
 
-            moved_selections.append(temp_selection)
+            moved = sublime.Region(selection.a + move, selection.b + move)
+            moved_selections.append(moved)
 
         # we must clear current selection
         self.view.sel().clear()
