@@ -118,7 +118,7 @@ class CompletionEventListener:
         if not self.client.is_ready():
             return None
 
-        point = locations[0]
+        point = min(locations)
         if (
             document := self.client.session.action_target.get("textDocument/completion")
         ) and document.is_completion_available():
