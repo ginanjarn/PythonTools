@@ -1,10 +1,9 @@
 """envoronment settings helper"""
 
-import json
 import threading
-from dataclasses import asdict
+from functools import wraps
 from pathlib import Path
-from typing import Iterator, Iterable, Optional
+from typing import Iterator, Optional
 
 import sublime
 import sublime_plugin
@@ -32,39 +31,65 @@ def get_workspace_path(view: sublime.View) -> Optional[Path]:
     return Path(max(folders))
 
 
+def set_status_message(message: str):
+    """set status message"""
+
+    def func_wrapper(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            sublime.status_message(message)
+            try:
+                return func(*args, **kwargs)
+            finally:
+                sublime.status_message("Done")
+
+        return wrapper
+
+    return func_wrapper
+
+
 class PythonToolsSetEnvironmentCommand(sublime_plugin.WindowCommand):
     """"""
 
-    def run(self, scan: bool = False):
-        thread = threading.Thread(target=self.run_task, args=(scan,))
+    is_busy = False
+
+    def run(self):
+        if self.is_busy:
+            return
+
+        thread = threading.Thread(target=self.run_task)
         thread.start()
 
-    def run_task(self, scan: bool = False):
-        managers = list(self.load_cache())
-        if not managers or scan:
-            managers = list(self.scan_managers())
-            self.save_cache(managers)
+    def run_task(self):
+        self.is_busy = True
 
+        managers = list(self.scan_environments())
         items = [m.python_bin for m in managers]
-
-        # Set as last item
-        items.append("Scan environments...")
-        scan_environments_index = len(items) - 1
 
         def on_select(index=-1):
             if index < 0:
-                return
+                manager = None
+            else:
+                manager = managers[index]
 
-            elif index == scan_environments_index:
-                self.window.run_command("python_tools_set_environment", {"scan": True})
-                return
+            def _save_settings(manager):
+                try:
+                    self.save_settings(manager)
+                finally:
+                    self.is_busy = False
 
             # Process in thread to prevent blocking
-            threading.Thread(target=self.save_settings, args=(managers[index],)).start()
+            threading.Thread(target=_save_settings, args=(manager,)).start()
 
-        self.window.show_quick_panel(items, on_select=on_select)
+        self.window.show_quick_panel(
+            items, on_select=on_select, placeholder="Select environment"
+        )
 
-    def save_settings(self, manager: venv.EnvironmentManager):
+    @set_status_message("Loading environment")
+    def save_settings(self, manager: Optional[venv.EnvironmentManager]):
+        if not manager:
+            return
+
         pythonpath = manager.python_bin
         environment = venv.get_environment(manager)
 
@@ -72,29 +97,10 @@ class PythonToolsSetEnvironmentCommand(sublime_plugin.WindowCommand):
             settings.set("python", pythonpath)
             settings.set("envs", environment)
 
-    def scan_managers(self) -> Iterator[venv.EnvironmentManager]:
+    @set_status_message("Scanning environments...")
+    def scan_environments(self) -> Iterator[venv.EnvironmentManager]:
         workdir = ""
         if view := self.window.active_view():
             workdir = get_workspace_path(view)
 
         yield from venv.scan(workdir)
-
-    cache_path = Path(__file__).parent.joinpath("var/environment_managers.json")
-
-    def load_cache(self) -> Iterator[venv.EnvironmentManager]:
-        try:
-            data = json.loads(self.cache_path.read_text())
-            yield from (venv.EnvironmentManager(**item) for item in data["items"])
-
-        except Exception:
-            pass
-
-    def save_cache(self, managers: Iterable[venv.EnvironmentManager]) -> None:
-        items = [asdict(m) for m in managers]
-        data = json.dumps({"items": items}, indent=2)
-
-        cache_dir = self.cache_path.parent
-        if not cache_dir.is_dir():
-            cache_dir.mkdir(parents=True)
-
-        self.cache_path.write_text(data)
