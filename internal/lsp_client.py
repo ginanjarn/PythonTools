@@ -353,7 +353,7 @@ class RequestManager:
             self.canceled_requests.clear()
 
 
-class Client:
+class ClientManager:
     def __init__(self, server: ServerProcess, transport: Transport, handler: Handler):
         self.server = server
         self.transport = transport

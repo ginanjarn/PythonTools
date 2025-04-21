@@ -28,7 +28,7 @@ from .uri import (
     uri_to_path,
 )
 from .lsp_client import (
-    Client,
+    ClientManager,
     ServerProcess,
     Transport,
     StandardIO,
@@ -119,7 +119,7 @@ def cancel_if_unset(event: threading.Event):
     return func_wrapper
 
 
-class PyserverClient(Client):
+class PyserverClient(ClientManager):
     """"""
 
     initialize_event = threading.Event()
