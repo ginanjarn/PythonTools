@@ -138,15 +138,10 @@ class CompletionEventListener:
         self.client.textdocument_completion(view, row, col)
         self.hide_completions(view)
 
-        # Use timeout because of slowdown in completion request
-        sublime.set_timeout_async(self.show_signature_help(view, point), 0.5)
         return None
 
     def hide_completions(self, view: sublime.View):
         view.run_command("hide_auto_complete")
-
-    def show_signature_help(self, view: sublime.View, point: int):
-        view.run_command(f"{COMMAND_PREFIX}_document_signature_help", {"point": point})
 
 
 class HoverEventListener:
@@ -166,28 +161,38 @@ class HoverEventListener:
         self.client.textdocument_hover(view, row, col)
 
 
-class DocumentSignatureHelpCommand:
+class DocumentSignatureHelpEventListener:
 
-    prev_trigger_word = sublime.Region(0)
+    prev_word = sublime.Region(0)
+    prev_count = 0
 
     def __init__(self, *args, **kwargs):
         self.view: sublime.View
         self.client: PyserverClient
 
-    def _run(self, edit: sublime.Edit, point: int):
+    def _on_selection_modified(self, view: sublime.View):
         if self.client.is_ready():
-            # Some times server response signaturehelp after cursor moved.
-            if not self.prev_trigger_word.contains(point):
-                self.view.hide_popup()
-
-            self.prev_trigger_word = self.view.word(point)
+            point = view.sel()[0].begin()
 
             # Only request signature on function arguments
-            if not self.view.match_selector(point, "meta.function-call.arguments"):
+            if not view.match_selector(point, "meta.function-call.arguments"):
+                view.hide_popup()
                 return
 
-            row, col = self.view.rowcol(point)
-            self.client.textdocument_signaturehelp(self.view, row, col)
+            # Only trigger on content modification
+            new_count = view.change_count()
+            if self.prev_count == new_count:
+                return
+            self.prev_count = new_count
+
+            # Keep current visible signature
+            current_word = view.word(point)
+            if view.is_popup_visible() and current_word.intersects(self.prev_word):
+                return
+            self.prev_word = current_word
+
+            row, col = view.rowcol(point)
+            self.client.textdocument_signaturehelp(view, row, col)
 
 
 class DocumentFormattingCommand:

@@ -73,10 +73,16 @@ class Document:
     def save(self):
         self.view.run_command("save")
 
-    def show_popup(self, text: str, row: int, col: int):
+    def show_popup(self, text: str, row: int, col: int, keep_visible: bool = False):
         point = self.view.text_point(row, col)
         self.view.run_command(
-            "marked_popup", {"location": point, "text": text, "markup": "markdown"}
+            "marked_popup",
+            {
+                "location": point,
+                "text": text,
+                "markup": "markdown",
+                "keep_visible": keep_visible,
+            },
         )
 
     def show_completion(self, items: List[sublime.CompletionItem]):

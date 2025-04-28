@@ -152,19 +152,16 @@ class PythonToolsHoverEventListener(
 
 
 class PythonToolsDocumentSignatureHelpCommand(
-    sublime_plugin.TextCommand, plugin_impl.DocumentSignatureHelpCommand
+    sublime_plugin.EventListener, plugin_impl.DocumentSignatureHelpEventListener
 ):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.client = CLIENT
 
-    def run(self, edit: sublime.Edit, point: int):
-        if not is_valid_document(self.view):
+    def on_selection_modified(self, view: sublime.View):
+        if not is_valid_document(view):
             return
-        self._run(edit, point)
-
-    def is_visible(self):
-        return is_valid_document(self.view)
+        self._on_selection_modified(view)
 
 
 class PythonToolsDocumentFormattingCommand(

@@ -450,7 +450,9 @@ class PyserverClient(ClientManager):
             )
             view = session.action_target[method].view
             row, col = view.rowcol(view.sel()[0].a)
-            session.action_target[method].show_popup(message, row, col)
+            session.action_target[method].show_popup(
+                message, row, col, keep_visible=True
+            )
 
     def handle_textdocument_publishdiagnostics(self, session: Session, params: dict):
         file_name = uri_to_path(params["uri"])
