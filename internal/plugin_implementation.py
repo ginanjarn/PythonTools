@@ -215,22 +215,23 @@ class GotoDefinitionCommand:
     def _run(
         self,
         edit: sublime.Edit,
-        row: int = -1,
-        column: int = -1,
+        row: int = 0,
+        column: int = 0,
         event: Optional[dict] = None,
+        natural_index: bool = False,
     ):
 
-        if event:
-            # call from context menu
-            row, column = self.view.rowcol(event["text_point"])
-        elif row > -1:
-            # call from 'view.run_command()'
-            # interface use 1-based index
+        if natural_index:
             row -= 1
-            column = 0 if column < 0 else column - 1
+            column -= 1
 
-        else:
-            row, column = self.view.rowcol(self.view.sel()[0].a)
+        if event:
+            text_point = event.get("text_point", -1)
+            if text_point > -1:
+                row, column = self.view.rowcol(text_point)
+
+        if row < 0 or column < 0:
+            raise ValueError("row or column index must > -1")
 
         if self.client.is_ready():
             self.client.textdocument_definition(self.view, row, column)

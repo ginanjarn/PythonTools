@@ -190,9 +190,10 @@ class PythonToolsGotoDefinitionCommand(
     def run(
         self,
         edit: sublime.Edit,
-        row: int = -1,
-        column: int = -1,
+        row: int = 0,
+        column: int = 0,
         event: Optional[dict] = None,
+        natural_index: bool = False,
     ):
         if not is_valid_document(self.view):
             return
