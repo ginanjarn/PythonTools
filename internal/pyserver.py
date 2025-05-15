@@ -202,7 +202,7 @@ class PyserverClient(ClientManager):
 
     def initialize(self, view: sublime.View):
         # cancel if initializing
-        if self.session.inittialize_status == InitializeStatus.Initializing:
+        if self.session.is_initializing():
             return
 
         # check if view not closed
@@ -213,7 +213,7 @@ class PyserverClient(ClientManager):
         if not workspace_path:
             return
 
-        self.session.inittialize_status = InitializeStatus.Initializing
+        self.session.set_initialize_status(InitializeStatus.Initializing)
         self.send_request(
             "initialize",
             {
@@ -235,7 +235,7 @@ class PyserverClient(ClientManager):
             return
 
         self.send_notification("initialized", {})
-        self.session.inittialize_status = InitializeStatus.Initialized
+        self.session.set_initialize_status(InitializeStatus.Initialized)
         self.initialize_event.set()
 
     def handle_window_logmessage(self, session: Session, params: dict):

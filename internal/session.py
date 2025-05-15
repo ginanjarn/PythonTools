@@ -41,7 +41,16 @@ class Session:
         self.diagnostic_manager = DiagnosticManager(ReportSettings(show_panel=False))
 
         # Initialize status
-        self.inittialize_status: InitializeStatus = InitializeStatus.NotInitialized
+        self.initialize_status: InitializeStatus = InitializeStatus.NotInitialized
+
+    def is_initializing(self) -> bool:
+        return self.initialize_status == InitializeStatus.Initializing
+
+    def is_initialized(self) -> bool:
+        return self.initialize_status == InitializeStatus.Initialized
+
+    def set_initialize_status(self, status: InitializeStatus) -> None:
+        self.initialize_status = status
 
     def reset(self):
         """"""
@@ -49,7 +58,7 @@ class Session:
             self.working_documents.clear()
             self.action_target.clear()
             self.diagnostic_manager.reset()
-            self.inittialize_status = InitializeStatus.NotInitialized
+            self.initialize_status = InitializeStatus.NotInitialized
 
     def get_document(
         self, view: sublime.View, /, default: Any = None
