@@ -173,6 +173,10 @@ class ServerProcess:
         # Wait if in termination process
         self._terminate_event.wait()
 
+        # Prevent process reassignment
+        if self.process:
+            return
+
         print("execute '%s'" % shlex.join(self.command))
 
         self.process = subprocess.Popen(
