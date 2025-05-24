@@ -5,13 +5,51 @@ import threading
 from typing import List, Optional
 
 import sublime
+import sublime_plugin
 from sublime import HoverZone
 
-from .constant import LOGGING_CHANNEL, COMMAND_PREFIX
-from .document import TextChange
-from .pyserver import PyserverClient, get_envs_settings
+from .constant import LOGGING_CHANNEL
+from .document import TextChange, is_valid_document
+from .pyserver import PyserverClient, get_client, get_envs_settings
+from .sublime_settings import Settings
+
 
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
+CLIENT = get_client()
+
+
+def setup_logger(level: int):
+    """"""
+    LOGGER.setLevel(level)
+    fmt = logging.Formatter("%(levelname)s %(filename)s:%(lineno)d  %(message)s")
+
+    sh = logging.StreamHandler()
+    sh.setFormatter(fmt)
+    LOGGER.addHandler(sh)
+
+
+def get_logging_settings():
+    """get logging level defined in '*.sublime-settings'"""
+    level_map = {
+        "error": logging.ERROR,
+        "warning": logging.WARNING,
+        "info": logging.INFO,
+        "verbose": logging.DEBUG,
+    }
+    with Settings() as settings:
+        settings_level = settings.get("logging")
+        return level_map.get(settings_level, logging.ERROR)
+
+
+def plugin_loaded():
+    """plugin entry point"""
+    setup_logger(get_logging_settings())
+
+
+def plugin_unloaded():
+    """executed before plugin unloaded"""
+    if CLIENT:
+        CLIENT.terminate()
 
 
 def initialize_server(client: PyserverClient, view: sublime.View):
@@ -20,67 +58,77 @@ def initialize_server(client: PyserverClient, view: sublime.View):
     client.initialize(view)
 
 
-class OpenEventListener:
+class PythonToolsOpenEventListener(sublime_plugin.EventListener):
 
     def __init__(self, *args, **kwargs):
-        self.client: PyserverClient
-        self.prev_completion_point = 0
+        super().__init__(*args, **kwargs)
+        self.client: PyserverClient = CLIENT
 
-    def _on_activated_async(self, view: sublime.View):
+    def on_activated_async(self, view: sublime.View):
+        if not is_valid_document(view):
+            return
         if self.client.is_ready():
             self.client.textdocument_didopen(view)
+
+        else:
+            # initialize server
+            initialize_server(self.client, view)
+            self.client.textdocument_didopen(view)
+
+    def on_load_async(self, view: sublime.View):
+        if not is_valid_document(view):
             return
+        if self.client.is_ready():
+            self.client.textdocument_didopen(view, reload=True)
 
-        if LOGGER.level == logging.DEBUG:
+    def on_reload_async(self, view: sublime.View):
+        if not is_valid_document(view):
             return
-
-        # initialize server
-        initialize_server(self.client, view)
-        self.client.textdocument_didopen(view)
-
-    def _on_load(self, view: sublime.View):
         if self.client.is_ready():
             self.client.textdocument_didopen(view, reload=True)
 
-    def _on_reload(self, view: sublime.View):
-        if self.client.is_ready():
-            self.client.textdocument_didopen(view, reload=True)
-
-    def _on_revert(self, view: sublime.View):
+    def on_revert_async(self, view: sublime.View):
+        if not is_valid_document(view):
+            return
         if self.client.is_ready():
             self.client.textdocument_didopen(view, reload=True)
 
 
-class SaveEventListener:
+class PythonToolsSaveEventListener(sublime_plugin.EventListener):
 
     def __init__(self, *args, **kwargs):
-        self.client: PyserverClient
-        self.prev_completion_point = 0
+        super().__init__(*args, **kwargs)
+        self.client: PyserverClient = CLIENT
 
-    def _on_post_save_async(self, view: sublime.View):
+    def on_post_save_async(self, view: sublime.View):
+        if not is_valid_document(view):
+            return
         if self.client.is_ready():
             self.client.textdocument_didsave(view)
 
 
-class CloseEventListener:
+class PythonToolsCloseEventListener(sublime_plugin.EventListener):
 
     def __init__(self, *args, **kwargs):
-        self.client: PyserverClient
-        self.prev_completion_point = 0
+        super().__init__(*args, **kwargs)
+        self.client: PyserverClient = CLIENT
 
-    def _on_close(self, view: sublime.View):
+    def on_close(self, view: sublime.View):
+        if not is_valid_document(view):
+            return
         if self.client.is_ready():
             self.client.textdocument_didclose(view)
 
 
-class TextChangeListener:
-
+class PythonToolsTextChangeListener(sublime_plugin.TextChangeListener):
     def __init__(self, *args, **kwargs):
-        self.buffer: sublime.Buffer
-        self.client: PyserverClient
+        super().__init__(*args, **kwargs)
+        self.client: PyserverClient = CLIENT
 
-    def _on_text_changed(self, changes: List[sublime.TextChange]):
+    def on_text_changed(self, changes: List[sublime.TextChange]):
         view = self.buffer.primary_view()
+        if not is_valid_document(view):
+            return
         if self.client.is_ready():
             self.client.textdocument_didchange(
                 view, [self.to_text_change(c) for c in changes]
@@ -94,27 +142,18 @@ class TextChangeListener:
         return TextChange(start, end, change.str, change.len_utf8)
 
 
-class CompletionEventListener:
+class PythonToolsCompletionEventListener(sublime_plugin.EventListener):
 
     def __init__(self, *args, **kwargs):
-        self.client: PyserverClient
+        super().__init__(*args, **kwargs)
+        self.client: PyserverClient = CLIENT
         self.prev_completion_point = 0
 
-    def _is_context_changed(self, view: sublime.View, old: int, new: int) -> bool:
-        """check if context moved from old point"""
-
-        # point unchanged
-        if old == new:
-            return False
-        # point changed but still in same word
-        word = view.word(old)
-        if view.substr(word).isidentifier() and new in word:
-            return False
-        return True
-
-    def _on_query_completions(
+    def on_query_completions(
         self, view: sublime.View, prefix: str, locations: List[int]
     ) -> sublime.CompletionList:
+        if not is_valid_document(view):
+            return
         if not self.client.is_ready():
             return None
 
@@ -140,37 +179,53 @@ class CompletionEventListener:
 
         return None
 
+    def _is_context_changed(self, view: sublime.View, old: int, new: int) -> bool:
+        """check if context moved from old point"""
+
+        # point unchanged
+        if old == new:
+            return False
+        # point changed but still in same word
+        word = view.word(old)
+        if view.substr(word).isidentifier() and new in word:
+            return False
+        return True
+
     def hide_completions(self, view: sublime.View):
         view.run_command("hide_auto_complete")
 
 
-class HoverEventListener:
+class PythonToolsHoverEventListener(sublime_plugin.EventListener):
 
     def __init__(self, *args, **kwargs):
-        self.client: PyserverClient
+        super().__init__(*args, **kwargs)
+        self.client: PyserverClient = CLIENT
 
-    def _on_hover(self, view: sublime.View, point: int, hover_zone: HoverZone):
+    def on_hover(self, view: sublime.View, point: int, hover_zone: HoverZone):
+        if not is_valid_document(view):
+            return
         row, col = view.rowcol(point)
         threading.Thread(target=self._on_hover_task, args=(view, row, col)).start()
 
     def _on_hover_task(self, view: sublime.View, row: int, col: int):
-        if not self.client.is_ready():
-            initialize_server(self.client, view)
+        if self.client.is_ready():
+            # Hover may be not in current active document, open it
+            self.client.textdocument_didopen(view)
+            self.client.textdocument_hover(view, row, col)
 
-        self.client.textdocument_didopen(view)
-        self.client.textdocument_hover(view, row, col)
 
+class PythonToolsDocumentSignatureHelpEventListener(sublime_plugin.EventListener):
 
-class DocumentSignatureHelpEventListener:
-
-    prev_word = sublime.Region(0)
     prev_count = 0
+    prev_word = sublime.Region(0)
 
     def __init__(self, *args, **kwargs):
-        self.view: sublime.View
-        self.client: PyserverClient
+        super().__init__(*args, **kwargs)
+        self.client: PyserverClient = CLIENT
 
-    def _on_selection_modified(self, view: sublime.View):
+    def on_selection_modified_async(self, view: sublime.View):
+        if not is_valid_document(view):
+            return
         if self.client.is_ready():
             point = view.sel()[0].begin()
 
@@ -179,40 +234,45 @@ class DocumentSignatureHelpEventListener:
                 view.hide_popup()
                 return
 
-            # Only trigger on content modification
-            new_count = view.change_count()
-            if self.prev_count == new_count:
-                return
-            self.prev_count = new_count
-
             # Keep current visible signature
             current_word = view.word(point)
             if view.is_popup_visible() and current_word.intersects(self.prev_word):
                 return
             self.prev_word = current_word
 
+            # Only trigger signature if view is changed
+            count = view.change_count()
+            if count == self.prev_count:
+                return
+            self.prev_count = count
+
             row, col = view.rowcol(point)
             self.client.textdocument_signaturehelp(view, row, col)
 
 
-class DocumentFormattingCommand:
+class PythonToolsDocumentFormattingCommand(sublime_plugin.TextCommand):
 
     def __init__(self, *args, **kwargs):
-        self.view: sublime.View
-        self.client: PyserverClient
+        super().__init__(*args, **kwargs)
+        self.client: PyserverClient = CLIENT
 
-    def _run(self, edit: sublime.Edit):
+    def run(self, edit: sublime.Edit):
+        if not is_valid_document(self.view):
+            return
         if self.client.is_ready():
             self.client.textdocument_formatting(self.view)
 
+    def is_visible(self):
+        return is_valid_document(self.view)
 
-class GotoDefinitionCommand:
+
+class PythonToolsGotoDefinitionCommand(sublime_plugin.TextCommand):
 
     def __init__(self, *args, **kwargs):
-        self.view: sublime.View
-        self.client: PyserverClient
+        super().__init__(*args, **kwargs)
+        self.client: PyserverClient = CLIENT
 
-    def _run(
+    def run(
         self,
         edit: sublime.Edit,
         row: int = 0,
@@ -220,6 +280,8 @@ class GotoDefinitionCommand:
         event: Optional[dict] = None,
         natural_index: bool = False,
     ):
+        if not is_valid_document(self.view):
+            return
 
         if natural_index:
             row -= 1
@@ -236,14 +298,22 @@ class GotoDefinitionCommand:
         if self.client.is_ready():
             self.client.textdocument_definition(self.view, row, column)
 
+    def is_visible(self):
+        return is_valid_document(self.view)
 
-class PrepareRenameCommand:
+    def want_event(self):
+        return True
+
+
+class PythonToolsPrepareRenameCommand(sublime_plugin.TextCommand):
 
     def __init__(self, *args, **kwargs):
-        self.view: sublime.View
-        self.client: PyserverClient
+        super().__init__(*args, **kwargs)
+        self.client: PyserverClient = CLIENT
 
-    def _run(self, edit: sublime.Edit, event: Optional[dict] = None):
+    def run(self, edit: sublime.Edit, event: Optional[dict] = None):
+        if not is_valid_document(self.view):
+            return
         cursor = self.view.sel()[0]
         point = event["text_point"] if event else cursor.a
         if self.client.is_ready():
@@ -254,16 +324,27 @@ class PrepareRenameCommand:
             start_row, start_col = self.view.rowcol(point)
             self.client.textdocument_preparerename(self.view, start_row, start_col)
 
+    def is_visible(self):
+        return is_valid_document(self.view)
 
-class RenameCommand:
+    def want_event(self):
+        return True
+
+
+class PythonToolsRenameCommand(sublime_plugin.TextCommand):
 
     def __init__(self, *args, **kwargs):
-        self.view: sublime.View
-        self.client: PyserverClient
+        super().__init__(*args, **kwargs)
+        self.client: PyserverClient = CLIENT
 
-    def _run(self, edit: sublime.Edit, row: int, column: int, new_name: str):
+    def run(self, edit: sublime.Edit, row: int, column: int, new_name: str):
+        if not is_valid_document(self.view):
+            return
         if self.client.is_ready():
             self.client.textdocument_rename(self.view, row, column, new_name)
+
+    def is_visible(self):
+        return is_valid_document(self.view)
 
 
 class _BufferedTextChange:
@@ -281,13 +362,11 @@ class _BufferedTextChange:
         return sublime.Region(self.region.a + move, self.region.b + move)
 
 
-class ApplyTextChangesCommand:
+class PythonToolsApplyTextChangesCommand(sublime_plugin.TextCommand):
     """changes item must serialized from 'TextChange'"""
 
-    def __init__(self, *args, **kwargs):
-        self.view: sublime.View
+    def run(self, edit: sublime.Edit, changes: List[dict]):
 
-    def _run(self, edit: sublime.Edit, changes: List[dict]):
         text_changes = [self.to_text_change(c) for c in changes]
         active_selection = list(self.view.sel())
 
@@ -329,3 +408,17 @@ class ApplyTextChangesCommand:
         # we must clear current selection
         self.view.sel().clear()
         self.view.sel().add_all(moved_selections)
+
+
+class PythonToolsTerminateCommand(sublime_plugin.WindowCommand):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.client = CLIENT
+
+    def run(self):
+        if self.client:
+            self.client.terminate()
+
+    def is_visible(self):
+        return self.client and self.client.is_ready()
