@@ -17,14 +17,8 @@ PathStr = str
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
 
 
-class InitializeStatus(Enum):
-    NotInitialized = 0
-    Initializing = 1
-    Initialized = 2
-
-
-class Session:
-    """Session"""
+class DocumentManager:
+    """"""
 
     def __init__(self) -> None:
 
@@ -39,26 +33,6 @@ class Session:
 
         # Diagnostic manager
         self.diagnostic_manager = DiagnosticManager(ReportSettings(show_panel=False))
-
-        # Initialize status
-        self.initialize_status: InitializeStatus = InitializeStatus.NotInitialized
-
-    def is_initializing(self) -> bool:
-        return self.initialize_status == InitializeStatus.Initializing
-
-    def is_initialized(self) -> bool:
-        return self.initialize_status == InitializeStatus.Initialized
-
-    def set_initialize_status(self, status: InitializeStatus) -> None:
-        self.initialize_status = status
-
-    def reset(self):
-        """"""
-        with self._lock:
-            self.working_documents.clear()
-            self.action_target.clear()
-            self.diagnostic_manager.reset()
-            self.initialize_status = InitializeStatus.NotInitialized
 
     def get_document(
         self, view: sublime.View, /, default: Any = None
@@ -89,9 +63,7 @@ class Session:
                     return document
             return default
 
-    def get_documents(
-        self, file_name: Optional[PathStr] = None
-    ) -> List[Document]:
+    def get_documents(self, file_name: Optional[PathStr] = None) -> List[Document]:
         """get documents.
         If file_name assigned, return documents with file_name filtered.
         """
@@ -103,3 +75,46 @@ class Session:
                 for _, doc in self.working_documents.items()
                 if doc.file_name == file_name
             ]
+
+    def reset_document_manager(self):
+        with self._lock:
+            self.working_documents.clear()
+            self.action_target.clear()
+            self.diagnostic_manager.reset()
+
+
+class InitializeStatus(Enum):
+    NotInitialized = 0
+    Initializing = 1
+    Initialized = 2
+
+
+class InitializeManager:
+    """"""
+
+    def __init__(self) -> None:
+        self.initialize_status: InitializeStatus = InitializeStatus.NotInitialized
+
+    def is_initializing(self) -> bool:
+        return self.initialize_status == InitializeStatus.Initializing
+
+    def is_initialized(self) -> bool:
+        return self.initialize_status == InitializeStatus.Initialized
+
+    def set_initialize_status(self, status: InitializeStatus) -> None:
+        self.initialize_status = status
+
+    def reset_initialize_manager(self):
+        self.initialize_status = InitializeStatus.NotInitialized
+
+
+class Session(DocumentManager, InitializeManager):
+    """Session"""
+
+    def __init__(self) -> None:
+        super().__init__()
+
+    def reset(self):
+        """"""
+        self.reset_document_manager()
+        self.reset_initialize_manager()
