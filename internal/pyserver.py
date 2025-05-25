@@ -125,7 +125,7 @@ class PyserverClient(ClientManager):
     initialize_event = threading.Event()
 
     def __init__(self, server: ServerProcess, transport: Transport):
-        super().__init__(server, transport, self)
+        super().__init__(server, transport, self.handle)
 
         # server message handler
         self.handler_map: Dict[MethodName, HandlerFunction] = dict()

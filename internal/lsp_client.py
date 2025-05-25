@@ -12,7 +12,7 @@ from dataclasses import dataclass, asdict
 from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
-from typing import Optional, Union, List, Dict, Set
+from typing import Optional, Union, List, Dict, Set, Callable, Any
 
 from . import errors
 from .constant import LOGGING_CHANNEL
@@ -83,20 +83,6 @@ def dumps(message: Message, as_bytes: bool = False) -> Union[str, bytes]:
     if as_bytes:
         return json_str.encode()
     return json_str
-
-
-class Handler(ABC):
-    """Base handler"""
-
-    @abstractmethod
-    def handle(
-        self, method: MethodName, params: Union[Message, dict]
-    ) -> Optional[Response]:
-        """handle message"""
-
-
-class ServerNotRunning(Exception):
-    """server not running"""
 
 
 class HeaderError(ValueError):
@@ -357,11 +343,19 @@ class RequestManager:
             self.canceled_requests.clear()
 
 
+MessageHandler = Callable[[MethodName, Union[dict, list]], Any]
+
+
 class ClientManager:
-    def __init__(self, server: ServerProcess, transport: Transport, handler: Handler):
+    def __init__(
+        self,
+        server: ServerProcess,
+        transport: Transport,
+        handle_func: MessageHandler,
+    ):
         self.server = server
         self.transport = transport
-        self.handler = handler
+        self.handle_func = handle_func
         self._request_manager = RequestManager()
 
     def _reset_managers(self) -> None:
@@ -418,7 +412,7 @@ class ClientManager:
         result = None
         error = None
         try:
-            result = self.handler.handle(message.method, message.params)
+            result = self.handle_func(message.method, message.params)
         except Exception as err:
             LOGGER.exception(err, exc_info=True)
             error = errors.transform_error(err)
@@ -427,7 +421,7 @@ class ClientManager:
 
     def _handle_notification(self, message: Notification) -> None:
         try:
-            self.handler.handle(message.method, message.params)
+            self.handle_func(message.method, message.params)
         except Exception as err:
             LOGGER.exception(err, exc_info=True)
 
@@ -439,7 +433,7 @@ class ClientManager:
             return
 
         try:
-            self.handler.handle(method, message)
+            self.handle_func(method, message)
         except Exception as err:
             LOGGER.exception(err, exc_info=True)
 
