@@ -119,13 +119,14 @@ def cancel_if_unset(event: threading.Event):
     return func_wrapper
 
 
-class PyserverClient(ClientManager):
+class PyserverClient:
     """"""
 
     initialize_event = threading.Event()
 
     def __init__(self, server: ServerProcess, transport: Transport):
-        super().__init__(server, transport, self.handle)
+        self.server = server
+        self.client = ClientManager(server, transport, self.handle)
 
         # server message handler
         self.handler_map: Dict[MethodName, HandlerFunction] = dict()
@@ -163,7 +164,7 @@ class PyserverClient(ClientManager):
                 self.reset_session()
 
                 self.server.run(env)
-                self.listen()
+                self.client.listen()
 
     def reset_session(self) -> None:
         """reset session state"""
@@ -214,7 +215,7 @@ class PyserverClient(ClientManager):
             return
 
         self.session.set_initialize_status(InitializeStatus.Initializing)
-        self.send_request(
+        self.client.send_request(
             "initialize",
             {
                 "rootPath": workspace_path,
@@ -234,7 +235,7 @@ class PyserverClient(ClientManager):
             print(err["message"])
             return
 
-        self.send_notification("initialized", {})
+        self.client.send_notification("initialized", {})
         self.session.set_initialize_status(InitializeStatus.Initialized)
         self.initialize_event.set()
 
@@ -268,7 +269,7 @@ class PyserverClient(ClientManager):
         # Same document maybe opened in multiple 'View', send notification
         # only on first opening document.
         if not self.session.get_documents(file_name):
-            self.send_notification(
+            self.client.send_notification(
                 "textDocument/didOpen",
                 {
                     "textDocument": {
@@ -286,7 +287,7 @@ class PyserverClient(ClientManager):
     @cancel_if_unset(initialize_event)
     def textdocument_didsave(self, view: sublime.View):
         if document := self.session.get_document(view):
-            self.send_notification(
+            self.client.send_notification(
                 "textDocument/didSave",
                 {"textDocument": {"uri": path_to_uri(document.file_name)}},
             )
@@ -307,7 +308,7 @@ class PyserverClient(ClientManager):
             if self.session.get_documents(file_name):
                 return
 
-            self.send_notification(
+            self.client.send_notification(
                 "textDocument/didClose",
                 {"textDocument": {"uri": path_to_uri(document.file_name)}},
             )
@@ -319,7 +320,7 @@ class PyserverClient(ClientManager):
         # in other view and the argument view not assigned.
         file_name = view.file_name()
         if document := self.session.get_document_by_name(file_name):
-            self.send_notification(
+            self.client.send_notification(
                 "textDocument/didChange",
                 {
                     "contentChanges": [textchange_to_rpc(c) for c in changes],
@@ -360,7 +361,7 @@ class PyserverClient(ClientManager):
                 return
 
             self.session.action_target[method] = document
-            self.send_request(
+            self.client.send_request(
                 method,
                 {
                     "position": {"character": col, "line": row},
@@ -383,7 +384,7 @@ class PyserverClient(ClientManager):
         method = "textDocument/completion"
         if document := self.session.get_document(view):
             self.session.action_target[method] = document
-            self.send_request(
+            self.client.send_request(
                 method,
                 {
                     "position": {"character": col, "line": row},
@@ -423,7 +424,7 @@ class PyserverClient(ClientManager):
         method = "textDocument/signatureHelp"
         if document := self.session.get_document(view):
             self.session.action_target[method] = document
-            self.send_request(
+            self.client.send_request(
                 method,
                 {
                     "position": {"character": col, "line": row},
@@ -466,7 +467,7 @@ class PyserverClient(ClientManager):
         method = "textDocument/formatting"
         if document := self.session.get_document(view):
             self.session.action_target[method] = document
-            self.send_request(
+            self.client.send_request(
                 method,
                 {
                     "options": {"insertSpaces": True, "tabSize": 2},
@@ -507,7 +508,7 @@ class PyserverClient(ClientManager):
         method = "textDocument/definition"
         if document := self.session.get_document(view):
             self.session.action_target[method] = document
-            self.send_request(
+            self.client.send_request(
                 method,
                 {
                     "position": {"character": col, "line": row},
@@ -535,7 +536,7 @@ class PyserverClient(ClientManager):
         method = "textDocument/prepareRename"
         if document := self.session.get_document(view):
             self.session.action_target[method] = document
-            self.send_request(
+            self.client.send_request(
                 method,
                 {
                     "position": {"character": col, "line": row},
@@ -553,7 +554,7 @@ class PyserverClient(ClientManager):
 
         if document := self.session.get_document(view):
             self.session.action_target[method] = document
-            self.send_request(
+            self.client.send_request(
                 method,
                 {
                     "newName": new_name,
