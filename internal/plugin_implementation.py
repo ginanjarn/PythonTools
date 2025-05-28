@@ -202,6 +202,8 @@ class PythonToolsHoverEventListener(sublime_plugin.EventListener):
         self.client: PyserverClient = CLIENT
 
     def on_hover(self, view: sublime.View, point: int, hover_zone: HoverZone):
+        if hover_zone != HoverZone.TEXT:
+            return
         if not is_valid_document(view):
             return
         row, col = view.rowcol(point)
