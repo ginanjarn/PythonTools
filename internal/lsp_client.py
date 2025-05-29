@@ -346,7 +346,9 @@ class RequestManager:
 MessageHandler = Callable[[MethodName, Union[dict, list]], Any]
 
 
-class ClientManager:
+class MessagePool:
+    """Client - Server Message Pool"""
+
     def __init__(
         self,
         server: ServerProcess,
