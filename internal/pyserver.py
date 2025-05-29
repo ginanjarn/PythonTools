@@ -137,7 +137,7 @@ class PyserverClient:
         # session data
         self.session = Session()
 
-    def handle(self, method: MethodName, params: HandleParams) -> Optional[Response]:
+    def handle(self, method: MethodName, params: HandleParams) -> Optional[Any]:
         """"""
         try:
             func = self.handler_map[method]
