@@ -282,6 +282,12 @@ class RequestManager:
 
         self._lock = threading.Lock()
 
+    def reset(self):
+        with self._lock:
+            self.methods_map.clear()
+            self.canceled_requests.clear()
+            self.request_count = 0
+
     def add(self, method: MethodName) -> int:
         """add request method to request_map
 
@@ -361,7 +367,7 @@ class MessagePool:
         self._request_manager = RequestManager()
 
     def _reset_managers(self) -> None:
-        self._request_manager = RequestManager()
+        self._request_manager.reset()
 
     def send_message(self, message: Message) -> None:
         content = dumps(message, as_bytes=True)
