@@ -400,14 +400,14 @@ class PyserverClient:
         except KeyError:
             insert_text = text
 
-        detail = completion_item["detail"]
+        signature = completion_item["detail"]
         kind = COMPLETION_KIND_MAP[completion_item["kind"]]
 
         return sublime.CompletionItem.snippet_completion(
             trigger=text,
             snippet=insert_text,
+            annotation=signature,
             kind=kind,
-            details=detail,
         )
 
     def handle_textdocument_completion(self, session: Session, params: Response):
