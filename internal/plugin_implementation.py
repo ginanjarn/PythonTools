@@ -218,6 +218,7 @@ class PythonToolsHoverEventListener(sublime_plugin.EventListener):
 
 class PythonToolsDocumentSignatureHelpEventListener(sublime_plugin.EventListener):
 
+    prev_point = 0
     prev_count = 0
     prev_word = sublime.Region(0)
 
@@ -230,26 +231,33 @@ class PythonToolsDocumentSignatureHelpEventListener(sublime_plugin.EventListener
             return
         if self.client.is_ready():
             point = view.sel()[0].begin()
-
-            # Only request signature on function arguments
-            if not view.match_selector(point, "meta.function-call.arguments"):
-                view.hide_popup()
-                return
-
-            # Keep current visible signature
-            current_word = view.word(point)
-            if view.is_popup_visible() and current_word.intersects(self.prev_word):
-                return
-            self.prev_word = current_word
-
-            # Only trigger signature if view is changed
+            word = view.word(point)
             count = view.change_count()
-            if count == self.prev_count:
-                return
-            self.prev_count = count
+            try:
+                if point == self.prev_point:
+                    return
 
-            row, col = view.rowcol(point)
-            self.client.textdocument_signaturehelp(view, row, col)
+                # Only request signature on function arguments
+                if not view.match_selector(point, "meta.function-call.arguments"):
+                    view.hide_popup()
+                    return
+
+                # Keep current visible signature
+                if view.is_popup_visible() and word.intersects(self.prev_word):
+                    return
+
+                # Only trigger signature if view is changed
+                if count == self.prev_count:
+                    return
+
+                row, col = view.rowcol(point)
+                self.client.textdocument_signaturehelp(view, row, col)
+
+            finally:
+                # save current state
+                self.prev_point = point
+                self.prev_word = word
+                self.prev_count = count
 
 
 class PythonToolsDocumentFormattingCommand(sublime_plugin.TextCommand):
