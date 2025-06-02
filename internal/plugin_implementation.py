@@ -66,66 +66,68 @@ class PythonToolsInitializerEventListener(sublime_plugin.EventListener):
 
         self.client.start_server(get_envs_settings())
         self.client.initialize(view)
+        # open active document
+        self.client.textdocument_didopen(view)
 
 
-class PythonToolsOpenEventListener(sublime_plugin.EventListener):
+class DocumentSynchronizer:
+    def __init__(self, *args, **kwargs) -> None:
+        self.client: PyserverClient
+
+    def synchronize_document(self, view: sublime.View) -> bool:
+        return is_valid_document(view) and self.client.is_ready()
+
+    def didopen(self, view: sublime.View, *, reload: bool = False):
+        if not self.synchronize_document(view):
+            return
+        self.client.textdocument_didopen(view, reload=reload)
+
+    def didsave(self, view: sublime.View):
+        if not self.synchronize_document(view):
+            return
+        self.client.textdocument_didsave(view)
+
+    def didclose(self, view: sublime.View):
+        if not self.synchronize_document(view):
+            return
+        self.client.textdocument_didclose(view)
+
+    def didchange(self, view: sublime.View, changes: List[TextChange]):
+        if not self.synchronize_document(view):
+            return
+        self.client.textdocument_didchange(view, changes)
+
+
+class PythonToolsDocumentSynchronizeEventListener(
+    sublime_plugin.EventListener, DocumentSynchronizer
+):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.client: PyserverClient = CLIENT
 
     def on_activated_async(self, view: sublime.View):
-        if not is_valid_document(view):
-            return
-        if self.client.is_ready():
-            self.client.textdocument_didopen(view)
+        self.didopen(view)
 
     def on_load_async(self, view: sublime.View):
-        if not is_valid_document(view):
-            return
-        if self.client.is_ready():
-            self.client.textdocument_didopen(view, reload=True)
+        self.didopen(view, reload=True)
 
     def on_reload_async(self, view: sublime.View):
-        if not is_valid_document(view):
-            return
-        if self.client.is_ready():
-            self.client.textdocument_didopen(view, reload=True)
+        self.didopen(view, reload=True)
 
     def on_revert_async(self, view: sublime.View):
-        if not is_valid_document(view):
-            return
-        if self.client.is_ready():
-            self.client.textdocument_didopen(view, reload=True)
-
-
-class PythonToolsSaveEventListener(sublime_plugin.EventListener):
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.client: PyserverClient = CLIENT
+        self.didopen(view, reload=True)
 
     def on_post_save_async(self, view: sublime.View):
-        if not is_valid_document(view):
-            return
-        if self.client.is_ready():
-            self.client.textdocument_didsave(view)
-
-
-class PythonToolsCloseEventListener(sublime_plugin.EventListener):
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.client: PyserverClient = CLIENT
+        self.didsave(view)
 
     def on_close(self, view: sublime.View):
-        if not is_valid_document(view):
-            return
-        if self.client.is_ready():
-            self.client.textdocument_didclose(view)
+        self.didclose(view)
 
 
-class PythonToolsTextChangeListener(sublime_plugin.TextChangeListener):
+class PythonToolsDocumentSynchronizeTextChangeListener(
+    sublime_plugin.TextChangeListener, DocumentSynchronizer
+):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.client: PyserverClient = CLIENT
@@ -134,10 +136,7 @@ class PythonToolsTextChangeListener(sublime_plugin.TextChangeListener):
         view = self.buffer.primary_view()
         if not is_valid_document(view):
             return
-        if self.client.is_ready():
-            self.client.textdocument_didchange(
-                view, [self.to_text_change(c) for c in changes]
-            )
+        self.didchange(view, [self.to_text_change(c) for c in changes])
 
     @staticmethod
     def to_text_change(change: sublime.TextChange) -> TextChange:
