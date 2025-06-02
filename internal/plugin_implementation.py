@@ -52,10 +52,20 @@ def plugin_unloaded():
         CLIENT.terminate()
 
 
-def initialize_server(client: PyserverClient, view: sublime.View):
-    """initialize server"""
-    client.start_server(get_envs_settings())
-    client.initialize(view)
+class PythonToolsInitializerEventListener(sublime_plugin.EventListener):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.client: PyserverClient = CLIENT
+
+    def on_activated_async(self, view: sublime.View):
+        if not is_valid_document(view):
+            return
+        if self.client.is_ready():
+            return
+
+        self.client.start_server(get_envs_settings())
+        self.client.initialize(view)
 
 
 class PythonToolsOpenEventListener(sublime_plugin.EventListener):
@@ -68,11 +78,6 @@ class PythonToolsOpenEventListener(sublime_plugin.EventListener):
         if not is_valid_document(view):
             return
         if self.client.is_ready():
-            self.client.textdocument_didopen(view)
-
-        else:
-            # initialize server
-            initialize_server(self.client, view)
             self.client.textdocument_didopen(view)
 
     def on_load_async(self, view: sublime.View):
