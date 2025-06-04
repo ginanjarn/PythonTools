@@ -15,26 +15,26 @@ PathStr = str
 """Path in string"""
 
 
+LineCharacter = namedtuple("LineCharacter", ["line", "character"])
+
+
 @dataclass
 class DiagnosticItem:
     severity: int
     region: sublime.Region
     message: str
 
+    @classmethod
+    def from_rpc(cls, view: sublime.View, diagnostic: dict, /):
+        """"""
+        start = LineCharacter(**diagnostic["range"]["start"])
+        end = LineCharacter(**diagnostic["range"]["end"])
+        region = sublime.Region(view.text_point(*start), view.text_point(*end))
+        message = diagnostic["message"]
+        if source := diagnostic.get("source"):
+            message = f"{message} ({source})"
 
-LineCharacter = namedtuple("LineCharacter", ["line", "character"])
-
-
-def rpc_to_diagnosticitem(view: sublime.View, diagnostic: dict, /) -> DiagnosticItem:
-    """"""
-    start = LineCharacter(**diagnostic["range"]["start"])
-    end = LineCharacter(**diagnostic["range"]["end"])
-    region = sublime.Region(view.text_point(*start), view.text_point(*end))
-    message = diagnostic["message"]
-    if source := diagnostic.get("source"):
-        message = f"{message} ({source})"
-
-    return DiagnosticItem(diagnostic["severity"], region, message)
+        return cls(diagnostic["severity"], region, message)
 
 
 @dataclass
@@ -44,20 +44,17 @@ class ReportSettings:
     show_panel: bool = False
 
 
-DefaultSettings = ReportSettings()
-
-REGIONS_KEY = f"{PACKAGE_NAME}_DIAGNOSTIC_REGIONS"
-STATUS_KEY = f"{PACKAGE_NAME}_DIAGNOSTIC_STATUS"
-
-
 class DiagnosticManager:
     """"""
 
-    def __init__(self, settings: ReportSettings = DefaultSettings) -> None:
+    REGIONS_KEY = f"{PACKAGE_NAME}_DIAGNOSTIC_REGIONS"
+    STATUS_KEY = f"{PACKAGE_NAME}_DIAGNOSTIC_STATUS"
+
+    def __init__(self, settings: ReportSettings = None) -> None:
         self.diagnostics_map: Dict[PathStr, List[dict]] = {}
         self.diagnostics_items_map: Dict[PathStr, List[DiagnosticItem]] = {}
 
-        self.settings = settings
+        self.settings = settings or ReportSettings()
         self.panel = DiagnosticPanel()
 
         self._change_lock = threading.Lock()
@@ -82,7 +79,7 @@ class DiagnosticManager:
             # Save DiagnostictsItems separate to diagnostic data
             # to prevent rebuild later.
             self.diagnostics_items_map[view.file_name()] = [
-                rpc_to_diagnosticitem(view, d) for d in diagnostics
+                DiagnosticItem.from_rpc(view, d) for d in diagnostics
             ]
             self._show_report(view)
 
@@ -116,6 +113,10 @@ class DiagnosticManager:
         return diagnostic_items
 
     def _show_report(self, view: sublime.View):
+        # Cancel show panel if reported diagnostics not in active view
+        if view != self._active_view:
+            return
+
         try:
             diagnostic_items = self.diagnostics_items_map[view.file_name()]
         except KeyError:
@@ -125,19 +126,16 @@ class DiagnosticManager:
             self._highlight_regions(view, diagnostic_items)
         if self.settings.show_status:
             self._show_status(view, diagnostic_items)
-
-        # Cancel show panel if reported diagnostics not in active view
-        if view != self._active_view:
-            return
-
         if self.settings.show_panel:
             self._show_panel(self.panel, view, diagnostic_items)
 
-    @staticmethod
-    def _highlight_regions(view: sublime.View, diagnostic_items: List[DiagnosticItem]):
+    @classmethod
+    def _highlight_regions(
+        cls, view: sublime.View, diagnostic_items: List[DiagnosticItem]
+    ):
         regions = [item.region for item in diagnostic_items]
         view.add_regions(
-            key=REGIONS_KEY,
+            key=cls.REGIONS_KEY,
             regions=regions,
             scope="invalid",
             icon="dot",
@@ -146,25 +144,25 @@ class DiagnosticManager:
             | sublime.DRAW_SQUIGGLY_UNDERLINE,
         )
 
-    @staticmethod
-    def _clear_all_regions():
+    @classmethod
+    def _clear_all_regions(cls):
         for window in sublime.windows():
             # erase regions
             for view in [v for v in window.views()]:
-                view.erase_regions(REGIONS_KEY)
+                view.erase_regions(cls.REGIONS_KEY)
 
-    @staticmethod
-    def _clear_all_status():
+    @classmethod
+    def _clear_all_status(cls):
         for window in sublime.windows():
             # erase regions
             for view in [v for v in window.views()]:
-                view.erase_status(STATUS_KEY)
+                view.erase_status(cls.STATUS_KEY)
 
-    @staticmethod
-    def _show_status(view: sublime.View, diagnostic_items: List[DiagnosticItem]):
+    @classmethod
+    def _show_status(cls, view: sublime.View, diagnostic_items: List[DiagnosticItem]):
         err_count = len([item for item in diagnostic_items if item.severity == 1])
         warn_count = len(diagnostic_items) - err_count
-        view.set_status(STATUS_KEY, f"ERROR {err_count}, WARNING {warn_count}")
+        view.set_status(cls.STATUS_KEY, f"ERROR {err_count}, WARNING {warn_count}")
 
     @staticmethod
     def _show_panel(
