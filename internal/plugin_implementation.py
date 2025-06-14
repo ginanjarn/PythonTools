@@ -222,46 +222,40 @@ class PythonToolsHoverEventListener(sublime_plugin.EventListener):
 
 class PythonToolsDocumentSignatureHelpEventListener(sublime_plugin.EventListener):
 
-    prev_point = 0
-    prev_count = 0
-    prev_word = sublime.Region(0)
-
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.client: PyserverClient = CLIENT
+
+        self._trigger_row = 0
+
+    def on_modified(self, view: sublime.View):
+        if not is_valid_document(view):
+            return
+        if self.client.is_ready():
+            point = view.sel()[0].begin()
+            if not view.match_selector(point, "meta.function-call.arguments"):
+                return
+
+            prefix = view.substr(point - 1)
+            if prefix not in {"(", ","}:
+                return
+
+            row, column = view.rowcol(point)
+            self._trigger_row = row
+            self.client.textdocument_signaturehelp(view, row, column)
 
     def on_selection_modified_async(self, view: sublime.View):
         if not is_valid_document(view):
             return
         if self.client.is_ready():
             point = view.sel()[0].begin()
-            word = view.word(point)
-            count = view.change_count()
-            try:
-                if point == self.prev_point:
-                    return
+            row, _ = view.rowcol(point)
 
-                # Only request signature on function arguments
-                if not view.match_selector(point, "meta.function-call.arguments"):
-                    view.hide_popup()
-                    return
-
-                # Keep current visible signature
-                if view.is_popup_visible() and word.intersects(self.prev_word):
-                    return
-
-                # Only trigger signature if view is changed
-                if count == self.prev_count:
-                    return
-
-                row, col = view.rowcol(point)
-                self.client.textdocument_signaturehelp(view, row, col)
-
-            finally:
-                # save current state
-                self.prev_point = point
-                self.prev_word = word
-                self.prev_count = count
+            if row == self._trigger_row:
+                return
+            if view.match_selector(point, "meta.function-call.arguments"):
+                return
+            view.hide_popup()
 
 
 class PythonToolsDocumentFormattingCommand(sublime_plugin.TextCommand):
