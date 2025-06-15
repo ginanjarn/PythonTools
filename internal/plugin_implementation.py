@@ -243,6 +243,7 @@ class PythonToolsDocumentSignatureHelpEventListener(sublime_plugin.EventListener
             row, column = view.rowcol(point)
             self._trigger_row = row
             self.client.textdocument_signaturehelp(view, row, column)
+            view.run_command("auto_complete")
 
     def on_selection_modified_async(self, view: sublime.View):
         if not is_valid_document(view):
@@ -250,10 +251,9 @@ class PythonToolsDocumentSignatureHelpEventListener(sublime_plugin.EventListener
         if self.client.is_ready():
             point = view.sel()[0].begin()
             row, _ = view.rowcol(point)
-
-            if row == self._trigger_row:
-                return
-            if view.match_selector(point, "meta.function-call.arguments"):
+            if view.match_selector(point, "meta.function-call.arguments") and (
+                row == self._trigger_row
+            ):
                 return
             view.hide_popup()
 
