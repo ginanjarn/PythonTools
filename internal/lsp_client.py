@@ -12,7 +12,7 @@ from dataclasses import dataclass, asdict
 from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
-from typing import Optional, Union, List, Dict, Set, Callable, Any
+from typing import Optional, Union, List, Dict, Callable, Any
 
 from . import errors
 from .constant import LOGGING_CHANNEL
@@ -277,7 +277,6 @@ class RequestManager:
 
     def __init__(self):
         self.methods_map: Dict[int, MethodName] = {}
-        self.canceled_requests: Set[int] = set()
         self.request_count = 0
 
         self._lock = threading.Lock()
@@ -285,7 +284,6 @@ class RequestManager:
     def reset(self):
         with self._lock:
             self.methods_map.clear()
-            self.canceled_requests.clear()
             self.request_count = 0
 
     def add(self, method: MethodName) -> int:
@@ -306,23 +304,23 @@ class RequestManager:
         Return:
             method: str
         Raises:
-            KeyError if request_id not found
             Canceled if request canceled
         """
 
         with self._lock:
-            if request_id in self.canceled_requests:
-                self.canceled_requests.remove(request_id)
-                raise Canceled(request_id)
-
-            # pop() is simpler than get() and del
-            return self.methods_map.pop(request_id)
+            try:
+                return self.methods_map.pop(request_id)
+            except KeyError as err:
+                raise Canceled(request_id) from err
 
     def _get_previous_request(self, method: MethodName) -> Optional[int]:
-        for req_id, meth in self.methods_map.items():
-            if meth == method:
-                return req_id
-
+        if found := [
+            (req_id, meth)
+            for req_id, meth in self.methods_map.items()
+            if meth == method
+        ]:
+            # return first match
+            return found[0][0]
         return None
 
     def cancel(self, method: MethodName) -> Optional[int]:
@@ -338,7 +336,6 @@ class RequestManager:
                 return None
 
             del self.methods_map[request_id]
-            self.canceled_requests.add(request_id)
             return request_id
 
     def cancel_all(self):
@@ -346,7 +343,6 @@ class RequestManager:
 
         with self._lock:
             self.methods_map.clear()
-            self.canceled_requests.clear()
 
 
 MessageHandler = Callable[[MethodName, Union[dict, list]], Any]
