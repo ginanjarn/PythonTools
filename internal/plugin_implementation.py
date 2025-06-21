@@ -2,6 +2,7 @@
 
 import logging
 import threading
+from dataclasses import dataclass
 from typing import List, Optional
 
 import sublime
@@ -228,7 +229,7 @@ class PythonToolsDocumentSignatureHelpEventListener(sublime_plugin.EventListener
 
         self._trigger_row = 0
 
-    def on_modified(self, view: sublime.View):
+    def on_modified_async(self, view: sublime.View):
         if not is_valid_document(view):
             return
         if self.client.is_ready():
@@ -355,19 +356,20 @@ class PythonToolsRenameCommand(sublime_plugin.TextCommand):
         return is_valid_document(self.view)
 
 
+@dataclass
 class _BufferedTextChange:
-    __slots__ = ["region", "old_text", "new_text"]
+    region: sublime.Region
+    old_text: str
+    new_text: str
 
-    def __init__(self, region: sublime.Region, old_text: str, new_text: str) -> None:
-        self.region = region
-        self.old_text = old_text
-        self.new_text = new_text
+    __slots__ = ["region", "old_text", "new_text"]
 
     def offset_move(self) -> int:
         return len(self.new_text) - len(self.old_text)
 
     def get_moved_region(self, move: int) -> sublime.Region:
-        return sublime.Region(self.region.a + move, self.region.b + move)
+        a, b = self.region.to_tuple()
+        return sublime.Region(a + move, b + move)
 
 
 class PythonToolsApplyTextChangesCommand(sublime_plugin.TextCommand):
@@ -389,11 +391,10 @@ class PythonToolsApplyTextChangesCommand(sublime_plugin.TextCommand):
             move += change.offset_move()
 
     def to_text_change(self, change: dict) -> _BufferedTextChange:
-        change = TextChange(**change)
+        text_point = self.view.text_point
 
-        start = self.view.text_point(*change.start)
-        end = self.view.text_point(*change.end)
-        region = sublime.Region(start, end)
+        change = TextChange(**change)
+        region = sublime.Region(text_point(*change.start), text_point(*change.end))
         old_text = self.view.substr(region)
 
         return _BufferedTextChange(region, old_text, change.text)
@@ -404,14 +405,15 @@ class PythonToolsApplyTextChangesCommand(sublime_plugin.TextCommand):
         """relocate current selection following text changes"""
         moved_selections = []
         for selection in selections:
-            move = 0
-            for change in changes:
-                changed_region = change.region
-                if changed_region.begin() < selection.begin():
-                    move += change.offset_move()
-
-            moved = sublime.Region(selection.a + move, selection.b + move)
-            moved_selections.append(moved)
+            move = sum(
+                [
+                    change.offset_move()
+                    for change in changes
+                    if change.region < selection
+                ]
+            )
+            a, b = selection.to_tuple()
+            moved_selections.append(sublime.Region(a + move, b + move))
 
         # we must clear current selection
         self.view.sel().clear()
