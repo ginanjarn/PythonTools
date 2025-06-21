@@ -59,7 +59,7 @@ HandlerFunction = Callable[[Session, HandleParams], Any]
 
 
 COMPLETION_KIND_MAP = defaultdict(
-    lambda _: sublime.KIND_AMBIGUOUS,
+    lambda: sublime.KIND_AMBIGUOUS,
     {
         1: (sublime.KindId.COLOR_ORANGISH, "t", ""),  # text
         2: (sublime.KindId.FUNCTION, "", ""),  # method
