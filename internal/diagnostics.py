@@ -166,7 +166,6 @@ class DiagnosticManager:
 
     @staticmethod
     def _show_panel(
-        self,
         panel: DiagnosticPanel,
         view: sublime.View,
         diagnostic_items: List[DiagnosticItem],
