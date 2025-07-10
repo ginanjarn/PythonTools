@@ -5,6 +5,7 @@ import logging
 import threading
 
 from collections import namedtuple, defaultdict
+from dataclasses import dataclass
 from functools import wraps
 from html import escape as escape_html
 from pathlib import Path
@@ -29,7 +30,7 @@ from .uri import (
 )
 from .lsp_client import (
     MessagePool,
-    ServerProcess,
+    ChildProcess,
     Transport,
     StandardIO,
     MethodName,
@@ -119,14 +120,20 @@ def cancel_if_unset(event: threading.Event):
     return func_wrapper
 
 
+@dataclass
+class ServerArguments:
+    command: List[str]
+    cwd: Path
+
+
 class PyserverClient:
     """"""
 
     initialize_event = threading.Event()
 
-    def __init__(self, server: ServerProcess, transport: Transport):
-        self.server = server
-        self.message_pool = MessagePool(server, transport, self.handle)
+    def __init__(self, arguments: ServerArguments, transport_cls: Transport):
+        self.server = ChildProcess(arguments.command, arguments.cwd)
+        self.message_pool = MessagePool(transport_cls(self.server), self.handle)
 
         # server message handler
         self.handler_map: Dict[MethodName, HandlerFunction] = dict()
@@ -685,9 +692,7 @@ def get_client() -> PyserverClient:
 
     server_path = package_path.joinpath("pyserver")
     command = ["python", "-m", "pyserver", "-i"]
-    server = ServerProcess(command, server_path)
-    transport = StandardIO(server)
-    return PyserverClient(server, transport)
+    return PyserverClient(ServerArguments(command, server_path), StandardIO)
 
 
 _RUN_COMMAND_AFTER: int = -1

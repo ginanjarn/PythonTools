@@ -9,12 +9,11 @@ import subprocess
 import shlex
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, asdict
-from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 from typing import Optional, Union, List, Dict, Callable, Any
 
-from . import errors
+from .errors import transform_error
 from .constant import LOGGING_CHANNEL
 
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
@@ -32,14 +31,14 @@ class Message:
 @dataclass
 class Notification(Message):
     method: MethodName
-    params: Union[dict, list]
+    params: Optional[Union[dict, list]] = None
 
 
 @dataclass
 class Request(Message):
     id: int
     method: MethodName
-    params: Union[dict, list]
+    params: Optional[Union[dict, list]] = None
 
 
 @dataclass
@@ -61,9 +60,9 @@ def loads(json_str: Union[str, bytes]) -> Message:
 
     if dct.get("method"):
         id = dct.get("id")
-        if id is not None:
-            return Request(**dct)
-        return Notification(**dct)
+        if id is None:
+            return Notification(**dct)
+        return Request(**dct)
     return Response(**dct)
 
 
@@ -74,7 +73,7 @@ def dumps(message: Message, as_bytes: bool = False) -> Union[str, bytes]:
     dct["jsonrpc"] = "2.0"
 
     if isinstance(message, Response):
-        if message.error is None:
+        if not message.error:
             del dct["error"]
         else:
             del dct["result"]
@@ -96,7 +95,6 @@ def wrap_rpc(content: bytes) -> bytes:
     return b"%s%s%s" % (header, separator, content)
 
 
-@lru_cache(maxsize=512)
 def get_content_length(header: bytes) -> int:
     for line in header.splitlines():
         if match := re.match(rb"Content-Length: (\d+)", line):
@@ -107,6 +105,14 @@ def get_content_length(header: bytes) -> int:
 
 class Transport(ABC):
     """Transport abstraction"""
+
+    @abstractmethod
+    def connect(self) -> None:
+        """open connection to server"""
+
+    @abstractmethod
+    def close(self) -> None:
+        """close connection to server"""
 
     @abstractmethod
     def write(self, data: bytes) -> None:
@@ -125,8 +131,8 @@ else:
     STARTUPINFO = None
 
 
-class ServerProcess:
-    """Server Process"""
+class ChildProcess:
+    """Child Process"""
 
     def __init__(self, command: List[str], cwd: Optional[Path] = None):
         if not isinstance(command, list):
@@ -144,10 +150,9 @@ class ServerProcess:
 
     def is_running(self) -> bool:
         """If process is running"""
-        try:
-            return self.process.poll() is None
-        except AttributeError:
+        if not self.process:
             return False
+        return self.process.poll() is None
 
     def wait_process_running(self) -> None:
         """Wait process running"""
@@ -222,8 +227,15 @@ class ServerProcess:
 class StandardIO(Transport):
     """StandardIO Transport implementation"""
 
-    def __init__(self, server: ServerProcess) -> None:
+    def __init__(self, server: ChildProcess) -> None:
         self.server = server
+
+    def connect(self) -> None:
+        # connect with stdio
+        pass
+
+    def close(self) -> None:
+        self.server.terminate()
 
     def write(self, data: bytes):
         self.server.wait_process_running()
@@ -251,24 +263,25 @@ class StandardIO(Transport):
             raise EOFError("stdout closed")
 
         try:
-            defined_length = get_content_length(header)
+            content_length = get_content_length(header)
         except HeaderError as err:
-            LOGGER.exception("header: %s", header_buffer.getvalue())
+            LOGGER.exception("header: %r", header_buffer.getvalue())
             raise err
 
         content_buffer = BytesIO()
-        received_length = 0
         # Read until defined content_length received.
-        while (missing := defined_length - received_length) and missing > 0:
+        missing = content_length
+        while missing:
             if chunk := self.server.stdout.read(missing):
-                received_length += content_buffer.write(chunk)
+                n = content_buffer.write(chunk)
+                missing -= n
             else:
                 raise EOFError("stdout closed")
 
         return content_buffer.getvalue()
 
 
-class Canceled(Exception):
+class RequestCanceled(Exception):
     """Request Canceled"""
 
 
@@ -304,14 +317,14 @@ class RequestManager:
         Return:
             method: str
         Raises:
-            Canceled if request canceled
+            RequestCanceled if request_id not found
         """
 
         with self._lock:
             try:
                 return self.methods_map.pop(request_id)
             except KeyError as err:
-                raise Canceled(request_id) from err
+                raise RequestCanceled(request_id) from err
 
     def _get_previous_request(self, method: MethodName) -> Optional[int]:
         if found := [
@@ -353,11 +366,9 @@ class MessagePool:
 
     def __init__(
         self,
-        server: ServerProcess,
         transport: Transport,
         handle_func: MessageHandler,
     ):
-        self.server = server
         self.transport = transport
         self.handle_func = handle_func
         self._request_manager = RequestManager()
@@ -375,7 +386,7 @@ class MessagePool:
             try:
                 message = loads(content)
             except json.JSONDecodeError as err:
-                LOGGER.exception("content: '%s'", content)
+                LOGGER.exception("content: %r", content)
                 raise err
 
             return message
@@ -385,18 +396,18 @@ class MessagePool:
                 message = listen_message()
 
             except EOFError:
-                # if stdout closed
+                # stdout closed
                 break
 
             except Exception as err:
                 LOGGER.exception(err, exc_info=True)
-                self.server.terminate()
+                self.transport.close()
                 break
 
             try:
                 self.handle_message(message)
             except Exception:
-                LOGGER.exception("error handle message: %s", message, exc_info=True)
+                LOGGER.exception("error handle message: %r", message, exc_info=True)
 
     def listen(self) -> None:
         self._reset_managers()
@@ -419,7 +430,7 @@ class MessagePool:
             result = self.handle_func(message.method, message.params)
         except Exception as err:
             LOGGER.exception(err, exc_info=True)
-            error = errors.transform_error(err)
+            error = transform_error(err)
 
         self.send_response(message.id, result, error)
 
@@ -432,7 +443,7 @@ class MessagePool:
     def _handle_response(self, message: Response) -> None:
         try:
             method = self._request_manager.pop(message.id)
-        except (Canceled, KeyError):
+        except (RequestCanceled, KeyError):
             # ignore canceled response
             return
 
