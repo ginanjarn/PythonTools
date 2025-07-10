@@ -9,6 +9,7 @@ import subprocess
 import shlex
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, asdict
+from functools import wraps
 from io import BytesIO
 from pathlib import Path
 from typing import Optional, Union, List, Dict, Callable, Any
@@ -131,6 +132,37 @@ else:
     STARTUPINFO = None
 
 
+def recover_exception(
+    default_factory: Callable[[Any], Any],
+    *,
+    exceptions: Optional[Union[Exception, tuple]] = None,
+):
+    """return default value if exception raised
+
+    Arguments:
+        default_factory: factory of default value
+        excepttions: captured exceptions
+
+    Returns:
+        default_factory() result
+    """
+
+    # default
+    exceptions = exceptions or Exception
+
+    def wrapper(func):
+        @wraps(func)
+        def inner(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except exceptions:
+                return default_factory()
+
+        return inner
+
+    return wrapper
+
+
 class ChildProcess:
     """Child Process"""
 
@@ -189,14 +221,17 @@ class ChildProcess:
         thread.start()
 
     @property
+    @recover_exception(BytesIO)
     def stdin(self):
         return self.process.stdin
 
     @property
+    @recover_exception(BytesIO)
     def stdout(self):
         return self.process.stdout
 
     @property
+    @recover_exception(BytesIO)
     def stderr(self):
         return self.process.stderr
 
