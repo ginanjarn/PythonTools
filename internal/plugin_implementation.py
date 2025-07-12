@@ -2,6 +2,7 @@
 
 import logging
 import threading
+import time
 from dataclasses import dataclass
 from functools import wraps
 from typing import List, Optional
@@ -80,8 +81,14 @@ class PythonToolsInitializerEventListener(sublime_plugin.EventListener):
 
         self.client.start_server(get_envs_settings())
         self.client.initialize(view)
+
         # open active document
-        self.client.textdocument_didopen(view)
+        for _ in range(25):
+            if self.client.is_ready():
+                self.client.textdocument_didopen(view)
+                break
+            # pause next iteration
+            time.sleep(0.5)  # seconds
 
 
 class DocumentSynchronizer:

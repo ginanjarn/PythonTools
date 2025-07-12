@@ -91,35 +91,6 @@ COMPLETION_KIND_MAP = defaultdict(
 )
 
 
-def wait(event: threading.Event):
-    """decorator to wait function call execution event set"""
-
-    def func_wrapper(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            event.wait()
-            return func(*args, **kwargs)
-
-        return wrapper
-
-    return func_wrapper
-
-
-def cancel_if_unset(event: threading.Event):
-    """cancel function call if event unset"""
-
-    def func_wrapper(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            if not event.is_set():
-                return None
-            return func(*args, **kwargs)
-
-        return wrapper
-
-    return func_wrapper
-
-
 @dataclass
 class ServerArguments:
     command: List[str]
@@ -128,8 +99,6 @@ class ServerArguments:
 
 class PyserverClient:
     """"""
-
-    initialize_event = threading.Event()
 
     def __init__(self, arguments: ServerArguments, transport_cls: Transport):
         self.server = ChildProcess(arguments.command, arguments.cwd)
@@ -176,11 +145,21 @@ class PyserverClient:
     def reset_session(self) -> None:
         """reset session state"""
         self.session.reset()
-        self.initialize_event.clear()
 
     def is_ready(self) -> bool:
         """check session is ready"""
-        return self.server.is_running() and self.initialize_event.is_set()
+        return self.server.is_running() and self.session.is_initialized()
+
+    def must_initialized(func):
+        """exec if initialized"""
+
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            if not self.session.is_initialized():
+                return None
+            return func(self, *args, **kwargs)
+
+        return wrapper
 
     def terminate(self) -> None:
         """terminate session"""
@@ -244,7 +223,6 @@ class PyserverClient:
 
         self.message_pool.send_notification("initialized", {})
         self.session.set_initialize_status(InitializeStatus.Initialized)
-        self.initialize_event.set()
 
     def handle_window_logmessage(self, session: Session, params: dict):
         print(params["message"])
@@ -252,7 +230,7 @@ class PyserverClient:
     def handle_window_showmessage(self, session: Session, params: dict):
         sublime.status_message(params["message"])
 
-    @wait(initialize_event)
+    @must_initialized
     def textdocument_didopen(self, view: sublime.View, *, reload: bool = False):
         # check if view not closed
         if not (view and view.is_valid()):
@@ -291,7 +269,7 @@ class PyserverClient:
         # Add current document
         self.session.add_document(document)
 
-    @cancel_if_unset(initialize_event)
+    @must_initialized
     def textdocument_didsave(self, view: sublime.View):
         if document := self.session.get_document(view):
             self.message_pool.send_notification(
@@ -303,7 +281,7 @@ class PyserverClient:
             # untitled document not yet loaded to server
             self.textdocument_didopen(view)
 
-    @cancel_if_unset(initialize_event)
+    @must_initialized
     def textdocument_didclose(self, view: sublime.View):
         file_name = view.file_name()
         self.session.diagnostic_manager.remove(view)
@@ -320,7 +298,7 @@ class PyserverClient:
                 {"textDocument": {"uri": path_to_uri(document.file_name)}},
             )
 
-    @cancel_if_unset(initialize_event)
+    @must_initialized
     def textdocument_didchange(self, view: sublime.View, changes: List[TextChange]):
         # Document can be related to multiple View but has same file_name.
         # Use get_document_by_name() because may be document already open
@@ -354,7 +332,7 @@ class PyserverClient:
         diagnostic_message = "\n".join([f"- {escape_html(d.message)}" for d in items])
         return f"{title}\n{diagnostic_message}"
 
-    @cancel_if_unset(initialize_event)
+    @must_initialized
     def textdocument_hover(self, view, row, col):
         method = "textDocument/hover"
         # In multi row/column layout, new popup will created in current View,
@@ -386,7 +364,7 @@ class PyserverClient:
             row, col = LineCharacter(**result["range"]["start"])
             session.action_target[method].show_popup(message, row, col)
 
-    @cancel_if_unset(initialize_event)
+    @must_initialized
     def textdocument_completion(self, view, row, col):
         method = "textDocument/completion"
         if document := self.session.get_document(view):
@@ -426,7 +404,7 @@ class PyserverClient:
             items = [self._build_completion(item) for item in result["items"]]
             session.action_target[method].show_completion(items)
 
-    @cancel_if_unset(initialize_event)
+    @must_initialized
     def textdocument_signaturehelp(self, view, row, col):
         method = "textDocument/signatureHelp"
         if document := self.session.get_document(view):
@@ -469,7 +447,7 @@ class PyserverClient:
         for document in session.get_documents(file_name):
             self.session.diagnostic_manager.set(document.view, diagnostics)
 
-    @cancel_if_unset(initialize_event)
+    @must_initialized
     def textdocument_formatting(self, view):
         method = "textDocument/formatting"
         if document := self.session.get_document(view):
@@ -510,7 +488,7 @@ class PyserverClient:
 
         return None
 
-    @cancel_if_unset(initialize_event)
+    @must_initialized
     def textdocument_definition(self, view, row, col):
         method = "textDocument/definition"
         if document := self.session.get_document(view):
@@ -538,7 +516,7 @@ class PyserverClient:
             locations = [self._build_location(l) for l in result]
             open_location(view, locations)
 
-    @cancel_if_unset(initialize_event)
+    @must_initialized
     def textdocument_preparerename(self, view, row, col):
         method = "textDocument/prepareRename"
         if document := self.session.get_document(view):
@@ -551,7 +529,7 @@ class PyserverClient:
                 },
             )
 
-    @cancel_if_unset(initialize_event)
+    @must_initialized
     def textdocument_rename(self, view, row, col, new_name):
         method = "textDocument/rename"
 
