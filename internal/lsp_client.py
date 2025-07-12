@@ -197,7 +197,7 @@ class ChildProcess:
         self._terminate_event.wait()
 
         # Prevent process reassignment
-        if self.process:
+        if self.process and self.process.poll() is None:
             return
 
         print("execute '%s'" % shlex.join(self.command))
