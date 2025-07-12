@@ -26,7 +26,7 @@ class DocumentManager:
         # If we map by file name, one document my related to multiple 'View'
         # and some times the 'View' is invalid.
         self.working_documents: Dict[sublime.View, Document] = {}
-        self._lock = threading.Lock()
+        self._working_documents_lock = threading.Lock()
 
         # Target document where result applied, e.g: completion result.
         self.action_target: Dict[MethodName, Document] = {}
@@ -37,15 +37,18 @@ class DocumentManager:
     def get_document(
         self, view: sublime.View, /, default: Any = None
     ) -> Optional[Document]:
-        with self._lock:
-            return self.working_documents.get(view, default)
+        with self._working_documents_lock:
+            try:
+                return self.working_documents[view]
+            except KeyError:
+                return default
 
     def add_document(self, document: Document) -> None:
-        with self._lock:
+        with self._working_documents_lock:
             self.working_documents[document.view] = document
 
     def remove_document(self, view: sublime.View) -> None:
-        with self._lock:
+        with self._working_documents_lock:
             try:
                 del self.working_documents[view]
             except KeyError as err:
@@ -57,7 +60,7 @@ class DocumentManager:
     ) -> Optional[Document]:
         """get document by name"""
 
-        with self._lock:
+        with self._working_documents_lock:
             for view, document in self.working_documents.items():
                 if view.file_name() == file_name:
                     return document
@@ -67,7 +70,7 @@ class DocumentManager:
         """get documents.
         If file_name assigned, return documents with file_name filtered.
         """
-        with self._lock:
+        with self._working_documents_lock:
             if not file_name:
                 return [doc for _, doc in self.working_documents.items()]
             return [
@@ -77,7 +80,7 @@ class DocumentManager:
             ]
 
     def reset_document_manager(self):
-        with self._lock:
+        with self._working_documents_lock:
             self.working_documents.clear()
             self.action_target.clear()
             self.diagnostic_manager.reset()
@@ -93,19 +96,19 @@ class InitializeManager:
     """"""
 
     def __init__(self) -> None:
-        self.initialize_status: InitializeStatus = InitializeStatus.NotInitialized
+        self._initialize_status = InitializeStatus.NotInitialized
 
     def is_initializing(self) -> bool:
-        return self.initialize_status == InitializeStatus.Initializing
+        return self._initialize_status is InitializeStatus.Initializing
 
     def is_initialized(self) -> bool:
-        return self.initialize_status == InitializeStatus.Initialized
+        return self._initialize_status is InitializeStatus.Initialized
 
     def set_initialize_status(self, status: InitializeStatus) -> None:
-        self.initialize_status = status
+        self._initialize_status = InitializeStatus(status)
 
     def reset_initialize_manager(self):
-        self.initialize_status = InitializeStatus.NotInitialized
+        self._initialize_status = InitializeStatus.NotInitialized
 
 
 class Session(DocumentManager, InitializeManager):
