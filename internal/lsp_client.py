@@ -361,30 +361,27 @@ class RequestManager:
             except KeyError as err:
                 raise RequestCanceled(request_id) from err
 
-    def _get_previous_request(self, method: MethodName) -> Optional[int]:
-        if found := [
-            (req_id, meth)
-            for req_id, meth in self.methods_map.items()
-            if meth == method
-        ]:
-            # return first match
-            return found[0][0]
-        return None
-
     def cancel(self, method: MethodName) -> Optional[int]:
-        """cancel request
+        """cancel older request
 
-        Return:
-            request_id: Optional[int]
+        Returns:
+            canceled request id or None
         """
 
         with self._lock:
-            request_id = self._get_previous_request(method)
-            if request_id is None:
+            canceled_id = None
+
+            for req_id, meth in self.methods_map.items():
+                if meth == method:
+                    canceled_id = req_id
+                    break
+            else:
+                # no match found
                 return None
 
-            del self.methods_map[request_id]
-            return request_id
+            # delete after for loop to prevent RuntimeError("dictionary changed size during iteration")
+            del self.methods_map[canceled_id]
+            return canceled_id
 
     def cancel_all(self):
         """cancel all request"""
