@@ -137,7 +137,7 @@ class DiagnosticManager:
         view.add_regions(
             key=cls.REGIONS_KEY,
             regions=regions,
-            scope="invalid",
+            scope="string",
             icon="dot",
             flags=sublime.DRAW_NO_FILL
             | sublime.DRAW_NO_OUTLINE
