@@ -1,7 +1,7 @@
 """diagnostics object"""
 
 import threading
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Callable
@@ -51,8 +51,12 @@ class DiagnosticManager:
     STATUS_KEY = f"{PACKAGE_NAME}_DIAGNOSTIC_STATUS"
 
     def __init__(self, settings: ReportSettings = None) -> None:
-        self.diagnostics_map: Dict[PathStr, List[dict]] = {}
-        self.diagnostics_items_map: Dict[PathStr, List[DiagnosticItem]] = {}
+        # One file may be openend in many View. For efficiency reason,
+        # only show report such text highlight on active view.
+
+        # Store raw diagnostic items to use later in CodeAction.
+        self.raw_itams_map: Dict[PathStr, List[dict]] = defaultdict(list)
+        self.items_map: Dict[PathStr, List[DiagnosticItem]] = defaultdict(list)
 
         self.settings = settings or ReportSettings()
         self.panel = DiagnosticPanel()
@@ -66,61 +70,59 @@ class DiagnosticManager:
         self._clear_all_status()
         self._active_view = None
         self.panel.destroy()
-        self.diagnostics_map.clear()
-        self.diagnostics_items_map.clear()
+        self.raw_itams_map.clear()
+        self.items_map.clear()
 
-    def get(self, view: sublime.View) -> List[dict]:
+    def get_raw(self, view: sublime.View) -> List[dict]:
+        """return raw dict of diagnostic items"""
         with self._change_lock:
-            return self.diagnostics_map.get(view.file_name(), [])
+            return self.raw_itams_map[view.file_name()]
 
-    def set(self, view: sublime.View, diagnostics: List[dict]):
+    def get(
+        self,
+        view: sublime.View,
+        filter_fn: Callable[[DiagnosticItem], bool] = None,
+    ) -> List[DiagnosticItem]:
+        """return diagnostic item"""
         with self._change_lock:
-            self.diagnostics_map[view.file_name()] = diagnostics
-            # Save DiagnostictsItems separate to diagnostic data
-            # to prevent rebuild later.
-            self.diagnostics_items_map[view.file_name()] = [
+            if not filter_fn:
+                return self.items_map[view.file_name()]
+            return [d for d in self.items_map[view.file_name()] if filter_fn(d)]
+
+    def add(self, view: sublime.View, diagnostics: List[dict]):
+        """add diagnostics"""
+        with self._change_lock:
+            self.raw_itams_map[view.file_name()] = diagnostics
+            self.items_map[view.file_name()] = [
                 DiagnosticItem.from_rpc(view, d) for d in diagnostics
             ]
             self._show_report(view)
 
     def remove(self, view: sublime.View):
+        """remove diagnostics"""
         with self._change_lock:
             try:
-                del self.diagnostics_map[view.file_name()]
-                del self.diagnostics_items_map[view.file_name()]
+                del self.raw_itams_map[view.file_name()]
+                del self.items_map[view.file_name()]
             except KeyError:
                 pass
             self._show_report(view)
 
     def set_active_view(self, view: sublime.View):
-        if view == self._active_view:
-            # Ignore if view not changed
+        """set active view"""
+        if view is self._active_view:
+            # active view not changed
             return
 
         self._active_view = view
         self._show_report(view)
 
-    def get_diagnostic_items(
-        self, view: sublime.View, filter_fn: Callable[[DiagnosticItem], bool] = None
-    ) -> List[DiagnosticItem]:
-        try:
-            diagnostic_items = self.diagnostics_items_map[view.file_name()]
-        except KeyError:
-            return []
-
-        if filter_fn:
-            return [d for d in diagnostic_items if filter_fn(d)]
-        return diagnostic_items
-
     def _show_report(self, view: sublime.View):
-        # Cancel show panel if reported diagnostics not in active view
-        if view != self._active_view:
+        if view is not self._active_view:
+            # cancel show report
             return
 
-        try:
-            diagnostic_items = self.diagnostics_items_map[view.file_name()]
-        except KeyError:
-            return []
+        diagnostic_items = self.items_map[view.file_name()]
 
         if self.settings.highlight_text:
             self._highlight_regions(view, diagnostic_items)

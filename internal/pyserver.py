@@ -322,9 +322,7 @@ class PyserverClient:
         def contain_point(item: DiagnosticItem):
             return item.region.contains(point)
 
-        items = self.session.diagnostic_manager.get_diagnostic_items(
-            view, contain_point
-        )
+        items = self.session.diagnostic_manager.get(view, contain_point)
         if not items:
             return ""
 
@@ -445,7 +443,7 @@ class PyserverClient:
         diagnostics = params["diagnostics"]
 
         for document in session.get_documents(file_name):
-            self.session.diagnostic_manager.set(document.view, diagnostics)
+            self.session.diagnostic_manager.add(document.view, diagnostics)
 
     @must_initialized
     def textdocument_formatting(self, view):
