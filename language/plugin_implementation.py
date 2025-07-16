@@ -67,7 +67,7 @@ def client_must_ready(func):
     return wrapper
 
 
-class PythonToolsInitializerEventListener(sublime_plugin.EventListener):
+class InitializerEventListener(sublime_plugin.EventListener):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -116,7 +116,7 @@ class DocumentSynchronizer:
         self.client.textdocument_didchange(view, changes)
 
 
-class PythonToolsDocumentSynchronizeEventListener(
+class DocumentSynchronizeEventListener(
     sublime_plugin.EventListener, DocumentSynchronizer
 ):
 
@@ -149,7 +149,7 @@ class PythonToolsDocumentSynchronizeEventListener(
         self.didclose(view)
 
 
-class PythonToolsDocumentSynchronizeTextChangeListener(
+class DocumentSynchronizeTextChangeListener(
     sublime_plugin.TextChangeListener, DocumentSynchronizer
 ):
     def __init__(self, *args, **kwargs):
@@ -171,7 +171,7 @@ class PythonToolsDocumentSynchronizeTextChangeListener(
         return TextChange(start, end, change.str, change.len_utf8)
 
 
-class PythonToolsCompletionEventListener(sublime_plugin.EventListener):
+class CompletionEventListener(sublime_plugin.EventListener):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -223,7 +223,7 @@ class PythonToolsCompletionEventListener(sublime_plugin.EventListener):
         view.run_command("hide_auto_complete")
 
 
-class PythonToolsHoverEventListener(sublime_plugin.EventListener):
+class HoverEventListener(sublime_plugin.EventListener):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -244,7 +244,7 @@ class PythonToolsHoverEventListener(sublime_plugin.EventListener):
         self.client.textdocument_hover(view, row, col)
 
 
-class PythonToolsDocumentSignatureHelpEventListener(sublime_plugin.EventListener):
+class DocumentSignatureHelpEventListener(sublime_plugin.EventListener):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -282,7 +282,7 @@ class PythonToolsDocumentSignatureHelpEventListener(sublime_plugin.EventListener
         view.hide_popup()
 
 
-class PythonToolsDocumentFormattingCommand(sublime_plugin.TextCommand):
+class DocumentFormattingCommandMixins:
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -298,7 +298,7 @@ class PythonToolsDocumentFormattingCommand(sublime_plugin.TextCommand):
         return is_valid_document(self.view)
 
 
-class PythonToolsGotoDefinitionCommand(sublime_plugin.TextCommand):
+class GotoDefinitionCommandMixins:
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -337,7 +337,7 @@ class PythonToolsGotoDefinitionCommand(sublime_plugin.TextCommand):
         return True
 
 
-class PythonToolsPrepareRenameCommand(sublime_plugin.TextCommand):
+class PrepareRenameCommandMixins:
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -363,7 +363,7 @@ class PythonToolsPrepareRenameCommand(sublime_plugin.TextCommand):
         return True
 
 
-class PythonToolsRenameCommand(sublime_plugin.TextCommand):
+class RenameCommandMixins:
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -395,7 +395,7 @@ class _BufferedTextChange:
         return sublime.Region(a + move, b + move)
 
 
-class PythonToolsApplyTextChangesCommand(sublime_plugin.TextCommand):
+class ApplyTextChangesCommandMixins:
     """changes item must serialized from 'TextChange'"""
 
     def run(self, edit: sublime.Edit, changes: List[dict]):
@@ -443,7 +443,7 @@ class PythonToolsApplyTextChangesCommand(sublime_plugin.TextCommand):
         self.view.sel().add_all(moved_selections)
 
 
-class PythonToolsTerminateCommand(sublime_plugin.WindowCommand):
+class TerminateCommandMixins:
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
