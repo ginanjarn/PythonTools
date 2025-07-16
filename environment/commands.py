@@ -1,6 +1,7 @@
 """commands implementation"""
 
 import threading
+from contextlib import contextmanager
 from functools import wraps
 from pathlib import Path
 from typing import Iterator, Optional
@@ -9,7 +10,20 @@ import sublime
 import sublime_plugin
 
 from . import virtual_environment as venv
-from ..internal.sublime_settings import Settings
+
+
+SETTINGS_BASENAME = "Python.sublime-settings"
+
+
+@contextmanager
+def Settings(
+    *, base_name: str = SETTINGS_BASENAME, save: bool = False
+) -> sublime.Settings:
+    """sublime settings"""
+
+    yield sublime.load_settings(base_name)
+    if save:
+        sublime.save_settings(base_name)
 
 
 def get_workspace_path(view: sublime.View) -> Optional[Path]:
