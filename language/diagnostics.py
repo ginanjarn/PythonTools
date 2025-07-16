@@ -2,20 +2,57 @@
 
 import threading
 from collections import namedtuple, defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Dict, List, Callable
 
 import sublime
 
-from .constant import PACKAGE_NAME
-from .panels import DiagnosticPanel
+from .constant import PACKAGE_NAME, COMMAND_PREFIX
+from .document import TextChange
 
 PathStr = str
 """Path in string"""
 
 
 LineCharacter = namedtuple("LineCharacter", ["line", "character"])
+
+
+class DiagnosticPanel:
+    OUTPUT_PANEL_NAME = f"{PACKAGE_NAME}_PANEL"
+    SETTINGS = {"gutter": False, "word_wrap": False}
+
+    def __init__(self):
+        self.panel: sublime.View = None
+
+    def _create_panel(self):
+        self.panel = sublime.active_window().create_output_panel(self.OUTPUT_PANEL_NAME)
+        self.panel.settings().update(self.SETTINGS)
+        self.panel.set_read_only(False)
+
+    def set_content(self, text: str):
+        if not (self.panel and self.panel.is_valid()):
+            self._create_panel()
+
+        start = (0, 0)
+        end = self.panel.rowcol(self.panel.size())
+
+        change = TextChange(start, end, text, -1)
+        self.panel.run_command(
+            f"{COMMAND_PREFIX}_apply_text_changes",
+            {"changes": [asdict(change)]},
+        )
+
+    def show(self) -> None:
+        """show output panel"""
+        sublime.active_window().run_command(
+            "show_panel", {"panel": f"output.{self.OUTPUT_PANEL_NAME}"}
+        )
+
+    def destroy(self):
+        """destroy output panel"""
+        for window in sublime.windows():
+            window.destroy_output_panel(self.OUTPUT_PANEL_NAME)
 
 
 @dataclass
