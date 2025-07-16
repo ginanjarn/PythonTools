@@ -1,4 +1,4 @@
-"""envoronment settings helper"""
+"""commands implementation"""
 
 import threading
 from functools import wraps
@@ -8,8 +8,8 @@ from typing import Iterator, Optional
 import sublime
 import sublime_plugin
 
-from .internal import virtual_environment as venv
-from .internal.sublime_settings import Settings
+from . import virtual_environment as venv
+from ..internal.sublime_settings import Settings
 
 
 def get_workspace_path(view: sublime.View) -> Optional[Path]:

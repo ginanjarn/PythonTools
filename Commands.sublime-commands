@@ -1,19 +1,7 @@
 [
 	{
-		"caption": "Python: Set Environment",
-		"command": "python_tools_set_environment"
-	},
-	{
 		"caption": "Python: Terminate server",
 		"command": "python_tools_terminate"
-	},
-	{
-		"args":
-		{
-			"settings_name": "Python.sublime-settings"
-		},
-		"caption": "Terminal: Open [pythontools]...",
-		"command": "open_terminal"
 	},
 	{
 		"caption" : "Format Code",
