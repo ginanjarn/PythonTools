@@ -13,9 +13,9 @@ from sublime import HoverZone
 
 from .constant import LOGGING_CHANNEL
 from .document import TextChange, is_valid_document
-from .pyserver import PyserverClient, get_client, get_envs_settings
 from .sublime_settings import Settings
 
+from .pyserver import get_client, get_envs_settings
 
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
 CLIENT = get_client()
@@ -71,7 +71,7 @@ class InitializerEventListener(sublime_plugin.EventListener):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.client: PyserverClient = CLIENT
+        self.client = CLIENT
 
     def on_activated_async(self, view: sublime.View):
         if not is_valid_document(view):
@@ -91,9 +91,7 @@ class InitializerEventListener(sublime_plugin.EventListener):
             time.sleep(0.5)  # seconds
 
 
-class DocumentSynchronizer:
-    def __init__(self, *args, **kwargs) -> None:
-        self.client: PyserverClient
+class DocumentSynchronizerMixins:
 
     def didopen(self, view: sublime.View, *, reload: bool = False):
         if not is_valid_document(view):
@@ -117,12 +115,12 @@ class DocumentSynchronizer:
 
 
 class DocumentSynchronizeEventListener(
-    sublime_plugin.EventListener, DocumentSynchronizer
+    DocumentSynchronizerMixins, sublime_plugin.EventListener
 ):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.client: PyserverClient = CLIENT
+        self.client = CLIENT
 
     @client_must_ready
     def on_activated_async(self, view: sublime.View):
@@ -150,11 +148,11 @@ class DocumentSynchronizeEventListener(
 
 
 class DocumentSynchronizeTextChangeListener(
-    sublime_plugin.TextChangeListener, DocumentSynchronizer
+    DocumentSynchronizerMixins, sublime_plugin.TextChangeListener
 ):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.client: PyserverClient = CLIENT
+        self.client = CLIENT
 
     @client_must_ready
     def on_text_changed(self, changes: List[sublime.TextChange]):
@@ -175,7 +173,7 @@ class CompletionEventListener(sublime_plugin.EventListener):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.client: PyserverClient = CLIENT
+        self.client = CLIENT
         self.prev_completion_point = 0
 
     @client_must_ready
@@ -215,8 +213,9 @@ class CompletionEventListener(sublime_plugin.EventListener):
             return False
         # point changed but still in same word
         word = view.word(old)
-        if view.substr(word).isidentifier() and new in word:
+        if new in word and view.substr(word).isidentifier():
             return False
+
         return True
 
     def hide_completions(self, view: sublime.View):
@@ -227,7 +226,7 @@ class HoverEventListener(sublime_plugin.EventListener):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.client: PyserverClient = CLIENT
+        self.client = CLIENT
 
     @client_must_ready
     def on_hover(self, view: sublime.View, point: int, hover_zone: HoverZone):
@@ -248,7 +247,7 @@ class DocumentSignatureHelpEventListener(sublime_plugin.EventListener):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.client: PyserverClient = CLIENT
+        self.client = CLIENT
 
         self._trigger_row = 0
 
@@ -286,7 +285,7 @@ class DocumentFormattingCommandMixins:
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.client: PyserverClient = CLIENT
+        self.client = CLIENT
 
     @client_must_ready
     def run(self, edit: sublime.Edit):
@@ -302,7 +301,7 @@ class GotoDefinitionCommandMixins:
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.client: PyserverClient = CLIENT
+        self.client = CLIENT
 
     @client_must_ready
     def run(
@@ -341,7 +340,7 @@ class PrepareRenameCommandMixins:
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.client: PyserverClient = CLIENT
+        self.client = CLIENT
 
     @client_must_ready
     def run(self, edit: sublime.Edit, event: Optional[dict] = None):
@@ -367,7 +366,7 @@ class RenameCommandMixins:
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.client: PyserverClient = CLIENT
+        self.client = CLIENT
 
     @client_must_ready
     def run(self, edit: sublime.Edit, row: int, column: int, new_name: str):
