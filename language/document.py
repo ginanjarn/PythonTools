@@ -1,6 +1,7 @@
 """Document handler module"""
 
 import logging
+import threading
 import time
 from collections import namedtuple
 from dataclasses import dataclass, asdict
@@ -53,6 +54,7 @@ class Document:
 
         self.view.settings().update(self.VIEW_SETTINGS)
         self._cached_completion = None
+        self._cached_completion_lock = threading.Lock()
 
     @property
     def window(self) -> sublime.Window:
@@ -86,16 +88,19 @@ class Document:
         )
 
     def show_completion(self, items: List[sublime.CompletionItem]):
-        self._cached_completion = items
+        with self._cached_completion_lock:
+            self._cached_completion = items
         self._trigger_completion()
 
     def pop_completion(self) -> List[sublime.CompletionItem]:
-        temp = self._cached_completion
-        self._cached_completion = None
-        return temp
+        with self._cached_completion_lock:
+            temp = self._cached_completion
+            self._cached_completion = None
+            return temp
 
     def is_completion_available(self) -> bool:
-        return self._cached_completion is not None
+        with self._cached_completion_lock:
+            return self._cached_completion is not None
 
     auto_complete_arguments = {
         "disable_auto_insert": True,
