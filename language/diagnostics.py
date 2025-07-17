@@ -147,7 +147,7 @@ class DiagnosticManager:
 
     def set_active_view(self, view: sublime.View):
         """set active view"""
-        if view is self._active_view:
+        if view == self._active_view:
             # active view not changed
             return
 
@@ -155,7 +155,7 @@ class DiagnosticManager:
         self._show_report(view)
 
     def _show_report(self, view: sublime.View):
-        if view is not self._active_view:
+        if view != self._active_view:
             # cancel show report
             return
 
