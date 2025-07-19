@@ -11,7 +11,7 @@ import sublime
 import sublime_plugin
 from sublime import HoverZone
 
-from .constant import LOGGING_CHANNEL
+from .constant import LOGGING_CHANNEL, COMMAND_PREFIX
 from .document import TextChange, is_valid_document
 from .sublime_settings import Settings
 
@@ -243,42 +243,46 @@ class HoverEventListener(sublime_plugin.EventListener):
         self.client.textdocument_hover(view, row, col)
 
 
-class DocumentSignatureHelpEventListener(sublime_plugin.EventListener):
+class DocumentSignatureHelpCommandMixins:
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.client = CLIENT
 
-        self._trigger_row = 0
+    @client_must_ready
+    def run(
+        self,
+        edit: sublime.Edit,
+        row: int = -1,
+        column: int = -1,
+    ):
+        if not is_valid_document(self.view):
+            return
+
+        if row < 0:
+            point = self.view.sel()[0].begin()
+            row, column = self.view.rowcol(point)
+        else:
+            point = self.view.text_point(row, column)
+
+        if not self.view.match_selector(point, "meta.function-call.arguments"):
+            return
+
+        self.client.textdocument_signaturehelp(self.view, row, column)
+
+
+class DocumentSignatureHelpEventListener(sublime_plugin.EventListener):
 
     @client_must_ready
     def on_modified_async(self, view: sublime.View):
+        self.trigger_signature_help(view)
+
+    def trigger_signature_help(self, view: sublime.View):
         if not is_valid_document(view):
             return
         point = view.sel()[0].begin()
-        if not view.match_selector(point, "meta.function-call.arguments"):
-            return
-
-        prefix = view.substr(point - 1)
-        if prefix not in {"(", ","}:
-            return
-
-        row, column = view.rowcol(point)
-        self._trigger_row = row
-        self.client.textdocument_signaturehelp(view, row, column)
-        view.run_command("auto_complete")
-
-    @client_must_ready
-    def on_selection_modified_async(self, view: sublime.View):
-        if not is_valid_document(view):
-            return
-        point = view.sel()[0].begin()
-        row, _ = view.rowcol(point)
-        if view.match_selector(point, "meta.function-call.arguments") and (
-            row == self._trigger_row
-        ):
-            return
-        view.hide_popup()
+        if view.substr(point - 1) in {"(", ","}:
+            view.run_command(f"{COMMAND_PREFIX}_document_signature_help")
 
 
 class DocumentFormattingCommandMixins:

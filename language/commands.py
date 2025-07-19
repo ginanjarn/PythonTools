@@ -11,12 +11,20 @@ Command name assignment similar to a dict type.
 import sublime_plugin
 from .plugin_implementation import (
     DocumentFormattingCommandMixins,
+    DocumentSignatureHelpCommandMixins,
     GotoDefinitionCommandMixins,
     PrepareRenameCommandMixins,
     RenameCommandMixins,
     ApplyTextChangesCommandMixins,
     TerminateCommandMixins,
 )
+
+
+class PythonToolsDocumentSignatureHelpCommand(
+    DocumentSignatureHelpCommandMixins,
+    sublime_plugin.TextCommand,
+):
+    """PythonToolsDocumentSignatureHelpCommand"""
 
 
 class PythonToolsDocumentFormattingCommand(
