@@ -5,11 +5,14 @@ import threading
 import time
 from dataclasses import dataclass
 from functools import wraps
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 
 import sublime
 import sublime_plugin
 from sublime import HoverZone
+
+if TYPE_CHECKING:
+    from sublime_types import CommandArgs
 
 from .constant import LOGGING_CHANNEL, COMMAND_PREFIX
 from .document import TextChange, is_valid_document
@@ -65,6 +68,21 @@ def client_must_ready(func):
         return func(*args, **kwargs)
 
     return wrapper
+
+
+class ContextMenuEventListener(sublime_plugin.EventListener):
+
+    @client_must_ready
+    def on_post_text_command(
+        self, view: sublime.View, command_name: str, args: "CommandArgs"
+    ):
+        # Move cursor on context metnu triggered position
+        if command_name != "context_menu":
+            return
+        # clear current selections
+        view.sel().clear()
+        point = view.window_to_text((args["event"]["x"], args["event"]["y"]))
+        view.sel().add(point)
 
 
 class InitializerEventListener(sublime_plugin.EventListener):
@@ -311,25 +329,20 @@ class GotoDefinitionCommandMixins:
     def run(
         self,
         edit: sublime.Edit,
-        row: int = 0,
-        column: int = 0,
+        row: int = -1,
+        column: int = -1,
         event: Optional[dict] = None,
-        natural_index: bool = False,
     ):
         if not is_valid_document(self.view):
             return
 
-        if natural_index:
-            row -= 1
-            column -= 1
-
         if event:
-            text_point = event.get("text_point", -1)
-            if text_point > -1:
-                row, column = self.view.rowcol(text_point)
+            point = event["text_point"]
+        else:
+            point = self.view.sel()[0].begin()
 
-        if row < 0 or column < 0:
-            raise ValueError("row or column index must > -1")
+        if row < 0:
+            row, column = self.view.rowcol(point)
 
         self.client.textdocument_definition(self.view, row, column)
 
@@ -350,11 +363,10 @@ class PrepareRenameCommandMixins:
     def run(self, edit: sublime.Edit, event: Optional[dict] = None):
         if not is_valid_document(self.view):
             return
-        cursor = self.view.sel()[0]
-        point = event["text_point"] if event else cursor.a
-        # move cursor to point
-        self.view.sel().clear()
-        self.view.sel().add(point)
+        if event:
+            point = event["text_point"]
+        else:
+            point = self.view.sel()[0].begin()
 
         start_row, start_col = self.view.rowcol(point)
         self.client.textdocument_preparerename(self.view, start_row, start_col)
@@ -404,10 +416,7 @@ class ApplyTextChangesCommandMixins:
     def run(self, edit: sublime.Edit, changes: List[dict]):
 
         text_changes = [self.to_text_change(c) for c in changes]
-        active_selection = list(self.view.sel())
-
         self.apply(edit, text_changes)
-        self.relocate_selection(active_selection, text_changes)
 
     def apply(self, edit: sublime.Edit, text_changes: List[_BufferedTextChange]):
         move = 0
@@ -424,26 +433,6 @@ class ApplyTextChangesCommandMixins:
         old_text = self.view.substr(region)
 
         return _BufferedTextChange(region, old_text, change.text)
-
-    def relocate_selection(
-        self, selections: List[sublime.Region], changes: List[_BufferedTextChange]
-    ):
-        """relocate current selection following text changes"""
-        moved_selections = []
-        for selection in selections:
-            move = sum(
-                [
-                    change.offset_move()
-                    for change in changes
-                    if change.region < selection
-                ]
-            )
-            a, b = selection.to_tuple()
-            moved_selections.append(sublime.Region(a + move, b + move))
-
-        # we must clear current selection
-        self.view.sel().clear()
-        self.view.sel().add_all(moved_selections)
 
 
 class TerminateCommandMixins:
