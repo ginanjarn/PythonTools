@@ -1,7 +1,11 @@
 [
 	{
+		"caption": "Python: Start server",
+		"command": "python_tools_start_server"
+	},
+	{
 		"caption": "Python: Terminate server",
-		"command": "python_tools_terminate"
+		"command": "python_tools_terminate_server"
 	},
 	{
 		"caption" : "Format Code",

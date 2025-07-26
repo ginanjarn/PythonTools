@@ -3,11 +3,11 @@
 import logging
 import threading
 from enum import Enum
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List, Any, Callable
 
 import sublime
 
-from .constant import LOGGING_CHANNEL
+from ..constant import LOGGING_CHANNEL
 from .document import Document
 from .diagnostics import DiagnosticManager, ReportSettings
 
@@ -22,67 +22,59 @@ class DocumentManager:
 
     def __init__(self) -> None:
 
-        # Map document by view is easier to track if view is valid.
-        # If we map by file name, one document my related to multiple 'View'
-        # and some times the 'View' is invalid.
-        self.working_documents: Dict[sublime.View, Document] = {}
+        self.working_documents: Dict[PathStr, Document] = {}
         self._working_documents_lock = threading.Lock()
-
-        # Target document where result applied, e.g: completion result.
-        self.action_target: Dict[MethodName, Document] = {}
 
         # Diagnostic manager
         self.diagnostic_manager = DiagnosticManager(ReportSettings(show_panel=False))
 
     def get_document(
-        self, view: sublime.View, /, default: Any = None
+        self, file_name: PathStr, /, default: Any = None
     ) -> Optional[Document]:
         with self._working_documents_lock:
             try:
-                return self.working_documents[view]
+                return self.working_documents[file_name]
             except KeyError:
                 return default
 
     def add_document(self, document: Document) -> None:
         with self._working_documents_lock:
-            self.working_documents[document.view] = document
+            self.working_documents[document.file_name] = document
 
-    def remove_document(self, view: sublime.View) -> None:
+    def remove_document(self, file_name: PathStr) -> None:
         with self._working_documents_lock:
             try:
-                del self.working_documents[view]
+                del self.working_documents[file_name]
             except KeyError as err:
                 LOGGER.debug("document not found %s", err)
                 pass
 
-    def get_document_by_name(
-        self, file_name: PathStr, /, default: Any = None
+    def get_document_by_view(
+        self, view: sublime.View, /, default: Any = None
     ) -> Optional[Document]:
-        """get document by name"""
+        """get document by view"""
 
         with self._working_documents_lock:
-            for view, document in self.working_documents.items():
-                if view.file_name() == file_name:
+            for _, document in self.working_documents.items():
+                if document.view == view:
                     return document
             return default
 
-    def get_documents(self, file_name: Optional[PathStr] = None) -> List[Document]:
-        """get documents.
-        If file_name assigned, return documents with file_name filtered.
-        """
+    def get_documents(
+        self, filter_func: Optional[Callable[[Document], bool]] = None
+    ) -> List[Document]:
+        """get documents."""
+
         with self._working_documents_lock:
-            if not file_name:
+            if not filter_func:
                 return [doc for _, doc in self.working_documents.items()]
             return [
-                doc
-                for _, doc in self.working_documents.items()
-                if doc.file_name == file_name
+                doc for _, doc in self.working_documents.items() if filter_func(doc)
             ]
 
     def reset_document_manager(self):
         with self._working_documents_lock:
             self.working_documents.clear()
-            self.action_target.clear()
             self.diagnostic_manager.reset()
 
 

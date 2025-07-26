@@ -9,7 +9,7 @@ from typing import List
 
 import sublime
 
-from .constant import (
+from ..constant import (
     LOGGING_CHANNEL,
     LANGUAGE_ID,
     VIEW_SELECTOR,

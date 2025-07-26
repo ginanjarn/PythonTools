@@ -3,7 +3,8 @@
 from contextlib import contextmanager
 import sublime
 
-from .constant import SETTINGS_BASENAME
+from ..constant import SETTINGS_BASENAME
+
 
 @contextmanager
 def Settings(

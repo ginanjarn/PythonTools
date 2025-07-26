@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Optional, Union, List, Dict, Callable, Any
 
 from .errors import transform_error
-from .constant import LOGGING_CHANNEL
+from ..constant import LOGGING_CHANNEL
 
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
 
