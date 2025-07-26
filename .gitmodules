@@ -1,3 +1,6 @@
 [submodule "pyserver"]
 	path = pyserver
 	url = https://github.com/ginanjarn/pyserver
+[submodule "language/plugin_core"]
+	path = language/plugin_core
+	url = https://github.com/ginanjarn/plugin_core.git

@@ -12,29 +12,29 @@ if TYPE_CHECKING:
     from sublime_types import CommandArgs
 
 from ..constant import LOGGING_CHANNEL, COMMAND_PREFIX
-from ..core.document import is_valid_document
-from ..core.sublime_settings import Settings
-from ..core.fetures.document_helper import _ApplyTextChangesCommand
+from ..plugin_core.document import is_valid_document
+from ..plugin_core.sublime_settings import Settings
+from ..plugin_core.fetures.document_helper import _ApplyTextChangesCommand
 from .client import get_client, get_envs_settings
 
-from ..core.fetures.server_manager import (
+from ..plugin_core.fetures.server_manager import (
     _StartServerCommand,
     _TerminateServerCommand,
 )
-from ..core.fetures.initializer import _InitializeCommand
-from ..core.fetures.document.synchronizer import (
+from ..plugin_core.fetures.initializer import _InitializeCommand
+from ..plugin_core.fetures.document.synchronizer import (
     DocumentSynchronizeEventListener,
     DocumentSynchronizeTextChangeListener,
 )
-from ..core.fetures.document.completion import CompletionEventListener
-from ..core.fetures.document.signature_help import (
+from ..plugin_core.fetures.document.completion import CompletionEventListener
+from ..plugin_core.fetures.document.signature_help import (
     _DocumentSignatureHelpCommand,
     DocumentSignatureHelpEventListener,
 )
-from ..core.fetures.document.hover import HoverEventListener
-from ..core.fetures.document.formatting import _DocumentFormattingCommand
-from ..core.fetures.document.definition import _GotoDefinitionCommand
-from ..core.fetures.document.rename import (
+from ..plugin_core.fetures.document.hover import HoverEventListener
+from ..plugin_core.fetures.document.formatting import _DocumentFormattingCommand
+from ..plugin_core.fetures.document.definition import _GotoDefinitionCommand
+from ..plugin_core.fetures.document.rename import (
     _PrepareRenameCommand,
     _RenameCommand,
 )
