@@ -14,27 +14,27 @@ if TYPE_CHECKING:
 from ..constant import LOGGING_CHANNEL, COMMAND_PREFIX
 from ..plugin_core.document import is_valid_document
 from ..plugin_core.sublime_settings import Settings
-from ..plugin_core.fetures.document_helper import _ApplyTextChangesCommand
+from ..plugin_core.features.document_helper import _ApplyTextChangesCommand
 from .client import get_client, get_envs_settings
 
-from ..plugin_core.fetures.server_manager import (
+from ..plugin_core.features.server_manager import (
     _StartServerCommand,
     _TerminateServerCommand,
 )
-from ..plugin_core.fetures.initializer import _InitializeCommand
-from ..plugin_core.fetures.document.synchronizer import (
+from ..plugin_core.features.initializer import _InitializeCommand
+from ..plugin_core.features.document.synchronizer import (
     DocumentSynchronizeEventListener,
     DocumentSynchronizeTextChangeListener,
 )
-from ..plugin_core.fetures.document.completion import CompletionEventListener
-from ..plugin_core.fetures.document.signature_help import (
+from ..plugin_core.features.document.completion import CompletionEventListener
+from ..plugin_core.features.document.signature_help import (
     _DocumentSignatureHelpCommand,
     DocumentSignatureHelpEventListener,
 )
-from ..plugin_core.fetures.document.hover import HoverEventListener
-from ..plugin_core.fetures.document.formatting import _DocumentFormattingCommand
-from ..plugin_core.fetures.document.definition import _GotoDefinitionCommand
-from ..plugin_core.fetures.document.rename import (
+from ..plugin_core.features.document.hover import HoverEventListener
+from ..plugin_core.features.document.formatting import _DocumentFormattingCommand
+from ..plugin_core.features.document.definition import _GotoDefinitionCommand
+from ..plugin_core.features.document.rename import (
     _PrepareRenameCommand,
     _RenameCommand,
 )

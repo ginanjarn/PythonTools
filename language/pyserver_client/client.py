@@ -19,21 +19,21 @@ from ..plugin_core.sublime_settings import Settings
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
 
 
-from ..plugin_core.fetures.initializer import InitializerMixins
-from ..plugin_core.fetures.document.synchronizer import DocumentSynchronizerMixins
+from ..plugin_core.features.initializer import InitializerMixins
+from ..plugin_core.features.document.synchronizer import DocumentSynchronizerMixins
 
-from ..plugin_core.fetures.document.completion import DocumentCompletionMixins
-from ..plugin_core.fetures.document.definition import DocumentDefinitionMixins
-from ..plugin_core.fetures.document.diagnostics import DocumentDiagnosticsMixins
-from ..plugin_core.fetures.document.formatting import DocumentFormattingMixins
-from ..plugin_core.fetures.document.hover import DocumentHoverMixins
-from ..plugin_core.fetures.document.rename import DocumentRenameMixins
-from ..plugin_core.fetures.document.signature_help import DocumentSignatureHelpMixins
+from ..plugin_core.features.document.completion import DocumentCompletionMixins
+from ..plugin_core.features.document.definition import DocumentDefinitionMixins
+from ..plugin_core.features.document.diagnostics import DocumentDiagnosticsMixins
+from ..plugin_core.features.document.formatting import DocumentFormattingMixins
+from ..plugin_core.features.document.hover import DocumentHoverMixins
+from ..plugin_core.features.document.rename import DocumentRenameMixins
+from ..plugin_core.features.document.signature_help import DocumentSignatureHelpMixins
 
-from ..plugin_core.fetures.workspace.command import WorkspaceExecuteCommandMixins
-from ..plugin_core.fetures.workspace.edit import WorkspaceApplyEditMixins
+from ..plugin_core.features.workspace.command import WorkspaceExecuteCommandMixins
+from ..plugin_core.features.workspace.edit import WorkspaceApplyEditMixins
 
-from ..plugin_core.fetures.window.message import WindowMessageMixins
+from ..plugin_core.features.window.message import WindowMessageMixins
 
 
 class PyserverClient(
