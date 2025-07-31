@@ -12,7 +12,7 @@ from ..constant import (
     LOGGING_CHANNEL,
     PACKAGE_NAME,
 )
-from ..plugin_core.lsp_client import StandardIO
+from ..plugin_core.transport import StandardIO
 from ..plugin_core.client import BaseClient, ServerArguments
 from ..plugin_core.sublime_settings import Settings
 
