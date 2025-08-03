@@ -3,13 +3,9 @@
 import logging
 import time
 from functools import wraps
-from typing import TYPE_CHECKING
 
 import sublime
 import sublime_plugin
-
-if TYPE_CHECKING:
-    from sublime_types import CommandArgs
 
 from ..constant import LOGGING_CHANNEL, COMMAND_PREFIX
 from ..plugin_core.document import is_valid_document
@@ -101,21 +97,6 @@ def client_must_ready(func):
         return func(*args, **kwargs)
 
     return wrapper
-
-
-class ContextMenuEventListener(sublime_plugin.EventListener):
-
-    @client_must_ready
-    def on_post_text_command(
-        self, view: sublime.View, command_name: str, args: "CommandArgs"
-    ):
-        # Move cursor on context metnu triggered position
-        if command_name != "context_menu":
-            return
-        # clear current selections
-        view.sel().clear()
-        point = view.window_to_text((args["event"]["x"], args["event"]["y"]))
-        view.sel().add(point)
 
 
 class InitializerEventListener(sublime_plugin.EventListener):
