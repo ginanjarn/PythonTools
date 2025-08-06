@@ -56,9 +56,7 @@ class PyserverClient(
 
 def get_client() -> PyserverClient:
     """"""
-    package_path = Path(sublime.packages_path(), PACKAGE_NAME)
-
-    server_path = package_path.joinpath("pyserver")
+    server_path = Path(sublime.packages_path()) / PACKAGE_NAME / "pyserver"
     command = ["python", "-m", "pyserver", "-i"]
     return PyserverClient(ServerArguments(command, server_path), StandardIO)
 
