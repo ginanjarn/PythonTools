@@ -95,8 +95,18 @@ class PythonToolsSetEnvironmentCommand(sublime_plugin.WindowCommand):
             # Process in thread to prevent blocking
             threading.Thread(target=_save_settings, args=(manager,)).start()
 
+        with Settings(save=False) as settings:
+            python = settings.get("python", "")
+            try:
+                selected_index = items.index(python)
+            except ValueError:
+                selected_index = -1
+
         self.window.show_quick_panel(
-            items, on_select=on_select, placeholder="Select environment"
+            items,
+            on_select=on_select,
+            selected_index=selected_index,
+            placeholder="Select environment",
         )
 
     @set_status_message("Loading environment")
