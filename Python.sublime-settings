@@ -10,6 +10,9 @@
 	// their symbols. This is required for Goto Definition to work.
 	"index_files": false,
 
+	// Controls what scopes auto complete will be triggered in
+	"auto_complete_selector": "source - comment - string.quoted",
+
 	// Python executable path.
 	"python": "",
 
