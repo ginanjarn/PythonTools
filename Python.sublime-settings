@@ -10,8 +10,16 @@
 	// their symbols. This is required for Goto Definition to work.
 	"index_files": false,
 
+	// When enabled, hovering over a word will show a popup listing all
+	// possible locations for the definition symbol. Requires index_files.
+	"show_definitions": false,
+
 	// Controls what scopes auto complete will be triggered in
 	"auto_complete_selector": "source - comment - string.quoted",
+
+	// Auto complete will used indexed data to provide completions from other
+	// files when this is enabled
+	"auto_complete_use_index": false,
 
 	// Python executable path.
 	"python": "",
