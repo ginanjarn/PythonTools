@@ -28,6 +28,6 @@
 	// Variables must stored as mapping eg. {"key":value}.
 	"envs": null,
 
-	// Logging level: 'error', 'warning', 'info', 'verbose'
-	"logging": "error",
+	// Controls logging level. Valid value: "error", "warning", "info", "debug"
+	"logging_level": ""
 }
