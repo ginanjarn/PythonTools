@@ -10,7 +10,7 @@ import sublime_plugin
 from ..constant import LOGGING_CHANNEL, COMMAND_PREFIX
 from ..plugin_core.document import is_valid_document
 from ..plugin_core.sublime_settings import Settings
-from ..plugin_core.features.document_helper import _ApplyTextChangesCommand
+from ..plugin_core.features.document_updater import _ApplyTextChangesCommand
 from .client import get_client, get_envs_settings
 
 from ..plugin_core.features.server_manager import (
@@ -18,19 +18,19 @@ from ..plugin_core.features.server_manager import (
     _TerminateServerCommand,
 )
 from ..plugin_core.features.initializer import _InitializeCommand
-from ..plugin_core.features.document.synchronizer import (
+from ..plugin_core.features.text_document.synchronizer import (
     DocumentSynchronizeEventListener,
     DocumentSynchronizeTextChangeListener,
 )
-from ..plugin_core.features.document.completion import CompletionEventListener
-from ..plugin_core.features.document.signature_help import (
+from ..plugin_core.features.text_document.completion import CompletionEventListener
+from ..plugin_core.features.text_document.signature_help import (
     _DocumentSignatureHelpCommand,
     DocumentSignatureHelpEventListener,
 )
-from ..plugin_core.features.document.hover import HoverEventListener
-from ..plugin_core.features.document.formatting import _DocumentFormattingCommand
-from ..plugin_core.features.document.definition import _GotoDefinitionCommand
-from ..plugin_core.features.document.rename import (
+from ..plugin_core.features.text_document.hover import HoverEventListener
+from ..plugin_core.features.text_document.formatting import _DocumentFormattingCommand
+from ..plugin_core.features.text_document.definition import _GotoDefinitionCommand
+from ..plugin_core.features.text_document.rename import (
     _PrepareRenameCommand,
     _RenameCommand,
 )

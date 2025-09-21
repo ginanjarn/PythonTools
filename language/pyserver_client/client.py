@@ -20,15 +20,17 @@ LOGGER = logging.getLogger(LOGGING_CHANNEL)
 
 
 from ..plugin_core.features.initializer import InitializerMixins
-from ..plugin_core.features.document.synchronizer import DocumentSynchronizerMixins
+from ..plugin_core.features.text_document.synchronizer import DocumentSynchronizerMixins
 
-from ..plugin_core.features.document.completion import DocumentCompletionMixins
-from ..plugin_core.features.document.definition import DocumentDefinitionMixins
-from ..plugin_core.features.document.diagnostics import DocumentDiagnosticsMixins
-from ..plugin_core.features.document.formatting import DocumentFormattingMixins
-from ..plugin_core.features.document.hover import DocumentHoverMixins
-from ..plugin_core.features.document.rename import DocumentRenameMixins
-from ..plugin_core.features.document.signature_help import DocumentSignatureHelpMixins
+from ..plugin_core.features.text_document.completion import DocumentCompletionMixins
+from ..plugin_core.features.text_document.definition import DocumentDefinitionMixins
+from ..plugin_core.features.text_document.diagnostics import DocumentDiagnosticsMixins
+from ..plugin_core.features.text_document.formatting import DocumentFormattingMixins
+from ..plugin_core.features.text_document.hover import DocumentHoverMixins
+from ..plugin_core.features.text_document.rename import DocumentRenameMixins
+from ..plugin_core.features.text_document.signature_help import (
+    DocumentSignatureHelpMixins,
+)
 
 from ..plugin_core.features.workspace.command import WorkspaceExecuteCommandMixins
 from ..plugin_core.features.workspace.edit import WorkspaceApplyEditMixins
