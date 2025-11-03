@@ -3,39 +3,103 @@
 import logging
 import time
 from collections import defaultdict
+from pathlib import Path
+from typing import Optional
 
 import sublime
 import sublime_plugin
 
-from ..constant import LOGGING_CHANNEL, COMMAND_PREFIX
+from ..constant import LOGGING_CHANNEL, COMMAND_PREFIX, PACKAGE_NAME
+from ..plugin_core.client import BaseClient, ServerArguments
 from ..plugin_core.document import is_valid_document
 from ..plugin_core.sublime_settings import Settings
-from ..plugin_core.features.document_updater import _ApplyTextChangesCommand
-from .client import get_client, get_envs_settings
+from ..plugin_core.transport import StandardIO
 
+from ..plugin_core.features.document_updater import _ApplyTextChangesCommand
 from ..plugin_core.features.server_manager import (
     _StartServerCommand,
     _TerminateServerCommand,
 )
-from ..plugin_core.features.initializer import _InitializeCommand
+from ..plugin_core.features.initializer import _InitializeCommand, InitializerMixins
 from ..plugin_core.features.text_document.synchronizer import (
     DocumentSynchronizeEventListener,
     DocumentSynchronizeTextChangeListener,
+    DocumentSynchronizerMixins,
 )
-from ..plugin_core.features.text_document.completion import CompletionEventListener
+from ..plugin_core.features.text_document.completion import (
+    CompletionEventListener,
+    DocumentCompletionMixins,
+)
 from ..plugin_core.features.text_document.signature_help import (
     _DocumentSignatureHelpCommand,
     DocumentSignatureHelpEventListener,
+    DocumentSignatureHelpMixins,
 )
-from ..plugin_core.features.text_document.hover import HoverEventListener
-from ..plugin_core.features.text_document.formatting import _DocumentFormattingCommand
-from ..plugin_core.features.text_document.definition import _GotoDefinitionCommand
+from ..plugin_core.features.text_document.hover import (
+    HoverEventListener,
+    DocumentHoverMixins,
+)
+from ..plugin_core.features.text_document.formatting import (
+    _DocumentFormattingCommand,
+    DocumentFormattingMixins,
+)
+from ..plugin_core.features.text_document.definition import (
+    _GotoDefinitionCommand,
+    DocumentDefinitionMixins,
+)
 from ..plugin_core.features.text_document.rename import (
     _PrepareRenameCommand,
     _RenameCommand,
+    DocumentRenameMixins,
 )
+from ..plugin_core.features.text_document.diagnostics import DocumentDiagnosticsMixins
+from ..plugin_core.features.workspace.command import WorkspaceExecuteCommandMixins
+from ..plugin_core.features.workspace.edit import WorkspaceApplyEditMixins
+from ..plugin_core.features.window.message import WindowMessageMixins
+
 
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
+
+
+class Client(
+    BaseClient,
+    InitializerMixins,
+    DocumentSynchronizerMixins,
+    DocumentCompletionMixins,
+    DocumentDefinitionMixins,
+    DocumentDiagnosticsMixins,
+    DocumentFormattingMixins,
+    DocumentHoverMixins,
+    DocumentRenameMixins,
+    DocumentSignatureHelpMixins,
+    WorkspaceExecuteCommandMixins,
+    WorkspaceApplyEditMixins,
+    WindowMessageMixins,
+):
+    """Client Implementation"""
+
+
+_RUN_COMMAND_AFTER: int = -1
+
+
+def get_envs_settings() -> Optional[dict]:
+    """get environments defined in '*.sublime-settings'"""
+
+    with Settings() as settings:
+        if envs := settings.get("envs"):
+            return envs
+
+        # Prevent multiple call run_command
+        now = time.time()
+        global _RUN_COMMAND_AFTER
+        if now < _RUN_COMMAND_AFTER:
+            return None
+
+        duration = 5  # in second
+        _RUN_COMMAND_AFTER = now + duration
+
+        sublime.active_window().run_command(f"{COMMAND_PREFIX}_set_environment")
+        return None
 
 
 class InitializerEventListener(sublime_plugin.EventListener):
@@ -74,6 +138,9 @@ class InitializerEventListener(sublime_plugin.EventListener):
                 break
             # pause next iteration
             time.sleep(0.5)  # seconds
+
+
+# -------------------------- Plugin Commands ------------------------------------
 
 
 class PythonToolsInitializeCommand(_InitializeCommand):
@@ -146,7 +213,11 @@ CLIENT = None
 def setup_client():
     """"""
     global CLIENT
-    CLIENT = get_client()
+
+    server_path = Path(sublime.packages_path()) / PACKAGE_NAME / "pyserver"
+    command = ["python", "-m", "pyserver", "-i"]
+    CLIENT = Client(ServerArguments(command, server_path), StandardIO)
+
     for command_or_event in {
         InitializerEventListener,
         # ----------------------
@@ -165,6 +236,9 @@ def setup_client():
         _RenameCommand,
     }:
         command_or_event.client = CLIENT
+
+
+# ----------------------------- Entry Points ------------------------------------
 
 
 def plugin_loaded():
