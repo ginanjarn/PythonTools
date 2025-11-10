@@ -1,10 +1,12 @@
 """plugin entry point"""
 
 import logging
+import shlex
 import time
 from collections import defaultdict
 from pathlib import Path
-from typing import Optional
+from shutil import which as sh_which
+from typing import List, Optional
 
 import sublime
 import sublime_plugin
@@ -206,6 +208,35 @@ def _get_logging_settings():
     return name_to_loglevel_map[str(named_level).lower()]
 
 
+def lsserver_command() -> List[str]:
+    python = None
+    with Settings() as settings:
+        if executable_path := settings.get("python", None):
+            python = executable_path
+        # find from PATH
+        elif executable_path := sh_which("python"):
+            python = executable_path
+        else:
+            raise Exception("unable find python executable")
+    return [python, "-m", "pyserver", "-i"]
+
+
+def lsserver_args() -> List[str]:
+    args = set()
+
+    with Settings() as settings:
+        if settings_flags := settings.get("args"):
+            args.update(shlex.split(settings_flags))
+
+    if LOGGER.level == logging.DEBUG:
+        args.add("--verbose")
+    return [arg for arg in args if arg]
+
+
+def lsserver_workdir() -> Optional[str]:
+    return str(Path(sublime.packages_path()) / PACKAGE_NAME / "pyserver")
+
+
 # CLIENT SINGLETON
 CLIENT = None
 
@@ -214,10 +245,11 @@ def setup_client():
     """"""
     global CLIENT
 
-    server_path = Path(sublime.packages_path()) / PACKAGE_NAME / "pyserver"
-    command = ["python", "-m", "pyserver", "-i"]
-    CLIENT = Client(ServerArguments(command, server_path), StandardIO)
+    command = lsserver_command() + lsserver_args()
+    CLIENT = Client(ServerArguments(command, lsserver_workdir()), StandardIO)
 
+
+def setup_plugins(client: Client) -> None:
     for command_or_event in {
         InitializerEventListener,
         # ----------------------
@@ -235,7 +267,7 @@ def setup_client():
         _PrepareRenameCommand,
         _RenameCommand,
     }:
-        command_or_event.client = CLIENT
+        command_or_event.client = client
 
 
 # ----------------------------- Entry Points ------------------------------------
@@ -245,6 +277,7 @@ def plugin_loaded():
     """plugin entry point"""
     setup_logger()
     setup_client()
+    setup_plugins(CLIENT)
 
 
 def plugin_unloaded():
