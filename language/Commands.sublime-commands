@@ -20,7 +20,7 @@
 		"command" : "python_tools_code_action",
 	},
 	{
-		"caption" : "Rename symbol...",
-		"command" : "python_tools_prepare_rename",
+		"caption" : "Document Symbol",
+		"command" : "python_tools_document_symbol",
 	}
 ]

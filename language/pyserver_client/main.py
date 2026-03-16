@@ -12,7 +12,8 @@ import sublime
 import sublime_plugin
 
 from ..constant import LOGGING_CHANNEL, COMMAND_PREFIX, PACKAGE_NAME
-from ..plugin_core.client import BaseClient, ServerArguments
+from ..plugin_core.child_process import ChildProcess
+from ..plugin_core.client import Client
 from ..plugin_core.document import is_valid_document
 from ..plugin_core.sublime_settings import Settings
 from ..plugin_core.transport import StandardIO
@@ -22,65 +23,27 @@ from ..plugin_core.features.server_manager import (
     _StartServerCommand,
     _TerminateServerCommand,
 )
-from ..plugin_core.features.initializer import _InitializeCommand, InitializerMixins
-from ..plugin_core.features.text_document.synchronizer import (
+from ..plugin_core.features.initializer import _InitializeCommand
+from ..plugin_core.features.text_document.synchronization import (
     DocumentSynchronizeEventListener,
     DocumentSynchronizeTextChangeListener,
-    DocumentSynchronizerMixins,
 )
-from ..plugin_core.features.text_document.completion import (
-    CompletionEventListener,
-    DocumentCompletionMixins,
-)
+from ..plugin_core.features.text_document.completion import CompletionEventListener
 from ..plugin_core.features.text_document.signature_help import (
     _DocumentSignatureHelpCommand,
     DocumentSignatureHelpEventListener,
-    DocumentSignatureHelpMixins,
 )
-from ..plugin_core.features.text_document.hover import (
-    HoverEventListener,
-    DocumentHoverMixins,
-)
-from ..plugin_core.features.text_document.formatting import (
-    _DocumentFormattingCommand,
-    DocumentFormattingMixins,
-)
-from ..plugin_core.features.text_document.definition import (
-    _GotoDefinitionCommand,
-    DocumentDefinitionMixins,
-)
+from ..plugin_core.features.text_document.hover import HoverEventListener
+from ..plugin_core.features.text_document.formatting import _DocumentFormattingCommand
+from ..plugin_core.features.text_document.definition import _GotoDefinitionCommand
 from ..plugin_core.features.text_document.rename import (
     _PrepareRenameCommand,
     _RenameCommand,
-    DocumentRenameMixins,
 )
-from ..plugin_core.features.text_document.diagnostics import DocumentDiagnosticsMixins
-from ..plugin_core.features.workspace.command import WorkspaceExecuteCommandMixins
-from ..plugin_core.features.workspace.edit import WorkspaceApplyEditMixins
-from ..plugin_core.features.window.message import WindowMessageMixins
+from ..plugin_core.features.text_document.symbol import _DocumentSymbolCommand
 
 
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
-
-
-class Client(
-    BaseClient,
-    InitializerMixins,
-    DocumentSynchronizerMixins,
-    DocumentCompletionMixins,
-    DocumentDefinitionMixins,
-    DocumentDiagnosticsMixins,
-    DocumentFormattingMixins,
-    DocumentHoverMixins,
-    DocumentRenameMixins,
-    DocumentSignatureHelpMixins,
-    WorkspaceExecuteCommandMixins,
-    WorkspaceApplyEditMixins,
-    WindowMessageMixins,
-):
-    """Client Implementation"""
-
-
 _RUN_COMMAND_AFTER: int = -1
 
 
@@ -106,7 +69,7 @@ def get_envs_settings() -> Optional[dict]:
 
 class InitializerEventListener(sublime_plugin.EventListener):
 
-    client = None
+    client: Client = None
 
     def on_activated_async(self, view: sublime.View):
         if not is_valid_document(view):
@@ -116,7 +79,8 @@ class InitializerEventListener(sublime_plugin.EventListener):
         if self.client.is_ready():
             return
 
-        if not self.client.server.is_running():
+        is_server_running = self.client.is_server_running
+        if not is_server_running():
             view.run_command(
                 f"{COMMAND_PREFIX}_start_server",
                 {"envs": get_envs_settings()},
@@ -124,7 +88,7 @@ class InitializerEventListener(sublime_plugin.EventListener):
 
         # initialize
         for _ in range(25):
-            if self.client.server.is_running():
+            if is_server_running():
                 self.client.initialize(view)
                 break
             # pause next iteration
@@ -167,6 +131,10 @@ class PythonToolsPrepareRenameCommand(_PrepareRenameCommand):
 
 class PythonToolsRenameCommand(_RenameCommand):
     """PythonToolsRenameCommand"""
+
+
+class PythonToolsDocumentSymbolCommand(_DocumentSymbolCommand):
+    """PythonToolsDocumentSymbolCommand"""
 
 
 class PythonToolsApplyTextChangesCommand(_ApplyTextChangesCommand):
@@ -246,7 +214,9 @@ def setup_client():
     global CLIENT
 
     command = lsserver_command() + lsserver_args()
-    CLIENT = Client(ServerArguments(command, lsserver_workdir()), StandardIO)
+    child = ChildProcess(command, lsserver_workdir())
+    transport = StandardIO(child)
+    CLIENT = Client(child, transport)
 
 
 def setup_plugins(client: Client) -> None:
@@ -266,6 +236,7 @@ def setup_plugins(client: Client) -> None:
         _GotoDefinitionCommand,
         _PrepareRenameCommand,
         _RenameCommand,
+        _DocumentSymbolCommand,
     }:
         command_or_event.client = client
 
