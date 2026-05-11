@@ -29,5 +29,10 @@
 	"envs": null,
 
 	// Controls logging level. Valid value: "error", "warning", "info", "debug"
-	"logging_level": ""
+	"logging_level": "",
+
+	// Diagnostic report settings
+	"highlight_text": true,
+	"status_message": true,
+	"report_panel": false,
 }
