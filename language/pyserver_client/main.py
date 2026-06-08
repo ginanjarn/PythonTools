@@ -83,7 +83,10 @@ class InitializerEventListener(sublime_plugin.EventListener):
         if not is_server_running():
             view.run_command(
                 f"{COMMAND_PREFIX}_start_server",
-                {"envs": get_envs_settings()},
+                {
+                    "command": lsserver_command(),
+                    "envs": get_envs_settings(),
+                },
             )
 
         # initialize
