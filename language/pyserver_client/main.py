@@ -42,7 +42,6 @@ from ..plugin_core.features.text_document.rename import (
 )
 from ..plugin_core.features.text_document.symbol import _DocumentSymbolCommand
 
-
 LOGGER = logging.getLogger(LOGGING_CHANNEL)
 _RUN_COMMAND_AFTER: int = -1
 
@@ -189,7 +188,7 @@ def lsserver_command() -> List[str]:
             python = executable_path
         else:
             raise Exception("unable find python executable")
-    return [python, "-m", "pyserver", "-i"]
+    return [python, "-m", "pyserver", "-i"] + lsserver_args()
 
 
 def lsserver_args() -> List[str]:
@@ -216,7 +215,7 @@ def setup_client():
     """"""
     global CLIENT
 
-    command = lsserver_command() + lsserver_args()
+    command = lsserver_command()
     child = ChildProcess(command, lsserver_workdir())
     transport = StandardIO(child)
     CLIENT = Client(child, transport)
