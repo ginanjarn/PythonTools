@@ -78,34 +78,13 @@ class InitializerEventListener(sublime_plugin.EventListener):
         if self.client.is_ready():
             return
 
-        is_server_running = self.client.is_server_running
-        if not is_server_running():
-            view.run_command(
-                f"{COMMAND_PREFIX}_start_server",
-                {
-                    "command": lsserver_command(),
-                    "envs": get_envs_settings(),
-                },
-            )
-
-        # initialize
-        for _ in range(25):
-            if is_server_running():
-                self.client.initialize(view)
-                break
-            # pause next iteration
-            time.sleep(0.5)  # seconds
-        else:
-            # server not running
-            return
-
-        # open active document
-        for _ in range(25):
-            if self.client.is_ready():
-                self.client.textdocument_didopen(view)
-                break
-            # pause next iteration
-            time.sleep(0.5)  # seconds
+        view.run_command(
+            f"{COMMAND_PREFIX}_start_server",
+            {
+                "command": lsserver_command(),
+                "envs": get_envs_settings(),
+            },
+        )
 
 
 # -------------------------- Plugin Commands ------------------------------------
